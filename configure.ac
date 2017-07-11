@@ -711,12 +711,6 @@ JE_COMPILABLE([tls_model attribute], [],
                foo = 0;],
               [je_cv_tls_model])
 JE_CFLAGS_RESTORE()
-if test "x${je_cv_tls_model}" = "xyes" ; then
-  AC_DEFINE([JEMALLOC_TLS_MODEL],
-            [__attribute__((tls_model("initial-exec")))])
-else
-  AC_DEFINE([JEMALLOC_TLS_MODEL], [ ])
-fi
 dnl Check for alloc_size attribute support.
 JE_CFLAGS_SAVE()
 JE_CFLAGS_ADD([-Werror])
@@ -1225,6 +1219,31 @@ if test "x$enable_cache_oblivious" = "x1" ; then
   AC_DEFINE([JEMALLOC_CACHE_OBLIVIOUS], [ ])
 fi
 AC_SUBST([enable_cache_oblivious])
+
+dnl Use initial-exec TLS by default.
+AC_ARG_ENABLE([general-dynamic-tls],
+  [AS_HELP_STRING([--enable-general-dynamic-tls],
+                  [Use the general dynamic TLS model (*NOT* RECOMMENDED))])],
+[if test "x$enable_general_dynamic_tls" = "xno" ; then
+  enable_general_dynamic_tls="0"
+else
+  enable_general_dynamic_tls="1"
+fi
+],
+[enable_general_dynamic_tls="0"]
+)
+if test "x$enable_general_dynamic_tls" = "x1" ; then
+  AC_DEFINE([JEMALLOC_ENABLE_GENERAL_DYNAMIC_TLS], [ ])
+fi
+AC_SUBST([enable_general_dynamic_tls])
+
+if test "x${je_cv_tls_model}" = "xyes" -a \
+       "x${enable_general_dynamic_tls}" = "x0" ; then
+  AC_DEFINE([JEMALLOC_TLS_MODEL],
+            [__attribute__((tls_model("initial-exec")))])
+else
+  AC_DEFINE([JEMALLOC_TLS_MODEL], [ ])
+fi
 
 
 
