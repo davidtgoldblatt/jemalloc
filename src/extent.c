@@ -833,7 +833,7 @@ extent_recycle_extract(tsdn_t *tsdn, arena_t *arena,
 }
 
 static extent_t *
-extent_recycle_split(tsdn_t *tsdn, arena_t *arena,
+extent_alloc_via_split(tsdn_t *tsdn, arena_t *arena,
     extent_hooks_t **r_extent_hooks, rtree_ctx_t *rtree_ctx, extents_t *extents,
     void *new_addr, size_t size, size_t pad, size_t alignment, bool slab,
     szind_t szind, extent_t *extent, bool growing_retained) {
@@ -890,6 +890,16 @@ extent_recycle_split(tsdn_t *tsdn, arena_t *arena,
 	}
 
 	return extent;
+}
+
+static extent_t *
+extent_recycle_split(tsdn_t *tsdn, arena_t *arena,
+    extent_hooks_t **r_extent_hooks, rtree_ctx_t *rtree_ctx, extents_t *extents,
+    void *new_addr, size_t size, size_t pad, size_t alignment, bool slab,
+    szind_t szind, extent_t *extent, bool growing_retained) {
+	return extent_alloc_via_split(tsdn, arena, r_extent_hooks, rtree_ctx,
+	    extents, new_addr, size, pad, alignment, slab, szind, extent,
+	    growing_retained);
 }
 
 static extent_t *
@@ -1046,7 +1056,7 @@ static extent_t *
 extent_grow_retained(tsdn_t *tsdn, arena_t *arena,
     extent_hooks_t **r_extent_hooks, size_t size, size_t pad, size_t alignment,
     bool slab, szind_t szind, bool *zero, bool *commit) {
-	malloc_mutex_assert_owner(tsdn, &arena->extent_grow_mtx);
+	malloc_mutex_assert_owner(tsdn, &arena->extent_eden_mtx);
 	assert(pad == 0 || !slab);
 	assert(!*zero || !slab);
 
@@ -1061,15 +1071,16 @@ extent_grow_retained(tsdn_t *tsdn, arena_t *arena,
 	 * satisfy this request.
 	 */
 	pszind_t egn_skip = 0;
-	size_t alloc_size = sz_pind2sz(arena->extent_grow_next + egn_skip);
+	size_t alloc_size = sz_pind2sz(arena->extent_eden_grow_next + egn_skip);
 	while (alloc_size < alloc_size_min) {
 		egn_skip++;
-		if (arena->extent_grow_next + egn_skip == NPSIZES) {
+		if (arena->extent_eden_grow_next + egn_skip == NPSIZES) {
 			/* Outside legal range. */
 			goto label_err;
 		}
-		assert(arena->extent_grow_next + egn_skip < NPSIZES);
-		alloc_size = sz_pind2sz(arena->extent_grow_next + egn_skip);
+		assert(arena->extent_eden_grow_next + egn_skip < NPSIZES);
+		alloc_size = sz_pind2sz(
+		    arena->extent_eden_grow_next + egn_skip);
 	}
 
 	extent_t *extent = extent_alloc(tsdn, arena);
@@ -1177,16 +1188,16 @@ extent_grow_retained(tsdn_t *tsdn, arena_t *arena,
 	}
 
 	/*
-	 * Increment extent_grow_next if doing so wouldn't exceed the legal
+	 * Increment extent_eden_grow_next if doing so wouldn't exceed the legal
 	 * range.
 	 */
-	if (arena->extent_grow_next + egn_skip + 1 < NPSIZES) {
-		arena->extent_grow_next += egn_skip + 1;
+	if (arena->extent_eden_grow_next + egn_skip + 1 < NPSIZES) {
+		arena->extent_eden_grow_next += egn_skip + 1;
 	} else {
-		arena->extent_grow_next = NPSIZES - 1;
+		arena->extent_eden_grow_next = NPSIZES - 1;
 	}
 	/* All opportunities for failure are past. */
-	malloc_mutex_unlock(tsdn, &arena->extent_grow_mtx);
+	malloc_mutex_unlock(tsdn, &arena->extent_eden_mtx);
 
 	if (config_prof) {
 		/* Adjust gdump stats now that extent is final size. */
@@ -1213,35 +1224,40 @@ extent_grow_retained(tsdn_t *tsdn, arena_t *arena,
 
 	return extent;
 label_err:
-	malloc_mutex_unlock(tsdn, &arena->extent_grow_mtx);
+	malloc_mutex_unlock(tsdn, &arena->extent_eden_mtx);
 	return NULL;
 }
 
 static extent_t *
-extent_alloc_retained(tsdn_t *tsdn, arena_t *arena,
+extent_alloc_eden(tsdn_t *tsdn, arena_t *arena,
     extent_hooks_t **r_extent_hooks, void *new_addr, size_t size, size_t pad,
     size_t alignment, bool slab, szind_t szind, bool *zero, bool *commit) {
 	assert(size != 0);
 	assert(alignment != 0);
 
-	malloc_mutex_lock(tsdn, &arena->extent_grow_mtx);
+	malloc_mutex_lock(tsdn, &arena->extent_eden_mtx);
 
 	extent_t *extent = extent_recycle(tsdn, arena, r_extent_hooks,
 	    &arena->extents_retained, new_addr, size, pad, alignment, slab,
 	    szind, zero, commit, true);
 	if (extent != NULL) {
-		malloc_mutex_unlock(tsdn, &arena->extent_grow_mtx);
+		malloc_mutex_unlock(tsdn, &arena->extent_eden_mtx);
 		if (config_prof) {
 			extent_gdump_add(tsdn, extent);
 		}
 	} else if (opt_retain && new_addr == NULL) {
-		extent = extent_grow_retained(tsdn, arena, r_extent_hooks, size,
+		extent = extent_alloc_eden(tsdn, arena, r_extent_hooks, size,
 		    pad, alignment, slab, szind, zero, commit);
+		if (extent == NULL) {
+			extent = extent_grow_retained(tsdn, arena,
+			    r_extent_hooks, size, pad, alignment, slab, szind,
+			    zero, commit);
+		}
 		/* extent_grow_retained() always releases extent_grow_mtx. */
 	} else {
-		malloc_mutex_unlock(tsdn, &arena->extent_grow_mtx);
+		malloc_mutex_unlock(tsdn, &arena->extent_eden_mtx);
 	}
-	malloc_mutex_assert_not_owner(tsdn, &arena->extent_grow_mtx);
+	malloc_mutex_assert_not_owner(tsdn, &arena->extent_eden_mtx);
 
 	return extent;
 }
@@ -1789,6 +1805,13 @@ extent_split_default(extent_hooks_t *extent_hooks, void *addr, size_t size,
 }
 #endif
 
+/*
+ * Accepts the extent to split, and the characteristics of each side of the
+ * split.  The 'a' parameters go with the 'lead' of the resulting pair of
+ * extents (the lower addressed portion of the split), and the 'b' parameters go
+ * with the trail (the higher addressed portion).  This makes 'extent' the lead,
+ * and returns the trail (except in case of error).
+ */
 static extent_t *
 extent_split_impl(tsdn_t *tsdn, arena_t *arena,
     extent_hooks_t **r_extent_hooks, extent_t *extent, size_t size_a,

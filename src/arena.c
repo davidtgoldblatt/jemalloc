@@ -2010,9 +2010,10 @@ arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 		goto label_error;
 	}
 
-	arena->extent_grow_next = sz_psz2ind(HUGEPAGE);
-	if (malloc_mutex_init(&arena->extent_grow_mtx, "extent_grow",
-	    WITNESS_RANK_EXTENT_GROW, malloc_mutex_rank_exclusive)) {
+	arena->extent_eden = NULL;
+	arena->extent_eden_grow_next = sz_psz2ind(HUGEPAGE);
+	if (malloc_mutex_init(&arena->extent_eden_mtx, "extent_eden",
+	    WITNESS_RANK_EXTENT_EDEN, malloc_mutex_rank_exclusive)) {
 		goto label_error;
 	}
 
@@ -2087,7 +2088,7 @@ arena_prefork1(tsdn_t *tsdn, arena_t *arena) {
 
 void
 arena_prefork2(tsdn_t *tsdn, arena_t *arena) {
-	malloc_mutex_prefork(tsdn, &arena->extent_grow_mtx);
+	malloc_mutex_prefork(tsdn, &arena->extent_eden_mtx);
 }
 
 void
@@ -2132,7 +2133,7 @@ arena_postfork_parent(tsdn_t *tsdn, arena_t *arena) {
 	extents_postfork_parent(tsdn, &arena->extents_dirty);
 	extents_postfork_parent(tsdn, &arena->extents_muzzy);
 	extents_postfork_parent(tsdn, &arena->extents_retained);
-	malloc_mutex_postfork_parent(tsdn, &arena->extent_grow_mtx);
+	malloc_mutex_postfork_parent(tsdn, &arena->extent_eden_mtx);
 	malloc_mutex_postfork_parent(tsdn, &arena->decay_dirty.mtx);
 	malloc_mutex_postfork_parent(tsdn, &arena->decay_muzzy.mtx);
 	if (config_stats) {
@@ -2170,7 +2171,7 @@ arena_postfork_child(tsdn_t *tsdn, arena_t *arena) {
 	extents_postfork_child(tsdn, &arena->extents_dirty);
 	extents_postfork_child(tsdn, &arena->extents_muzzy);
 	extents_postfork_child(tsdn, &arena->extents_retained);
-	malloc_mutex_postfork_child(tsdn, &arena->extent_grow_mtx);
+	malloc_mutex_postfork_child(tsdn, &arena->extent_eden_mtx);
 	malloc_mutex_postfork_child(tsdn, &arena->decay_dirty.mtx);
 	malloc_mutex_postfork_child(tsdn, &arena->decay_muzzy.mtx);
 	if (config_stats) {

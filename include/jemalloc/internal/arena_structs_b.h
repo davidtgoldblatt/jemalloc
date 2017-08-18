@@ -233,16 +233,17 @@ struct arena_s {
 	arena_decay_t		decay_muzzy; /* muzzy --> retained */
 
 	/*
-	 * Next extent size class in a growing series to use when satisfying a
-	 * request via the extent hooks (only if opt_retain).  This limits the
-	 * number of disjoint virtual memory ranges so that extent merging can
-	 * be effective even if multiple arenas' extent allocation requests are
-	 * highly interleaved.
+	 * When opt_retain is true, we allocate (using the extent hooks) "eden"
+	 * spaces of exponentially increasing size, and bump-allocate from them
+	 * when we need additional memory.  This limits the number of disjoint
+	 * virtual memory ranges so that extent merging can be effective even if
+	 * multiple arenas' extent allocation requests are highly interleaved.
 	 *
-	 * Synchronization: extent_grow_mtx
+	 * Synchronization: extent_eden_grow_mtx
 	 */
-	pszind_t		extent_grow_next;
-	malloc_mutex_t		extent_grow_mtx;
+	extent_t		*extent_eden;
+	pszind_t		extent_eden_grow_next;
+	malloc_mutex_t		extent_eden_mtx;
 
 	/*
 	 * Available extent structures that were allocated via
