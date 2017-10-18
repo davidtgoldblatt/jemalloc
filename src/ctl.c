@@ -88,6 +88,7 @@ CTL_PROTO(opt_percpu_arena)
 CTL_PROTO(opt_background_thread)
 CTL_PROTO(opt_dirty_decay_ms)
 CTL_PROTO(opt_muzzy_decay_ms)
+CTL_PROTO(opt_eager_coalesce)
 CTL_PROTO(opt_stats_print)
 CTL_PROTO(opt_stats_print_opts)
 CTL_PROTO(opt_junk)
@@ -285,6 +286,7 @@ static const ctl_named_node_t opt_node[] = {
 	{NAME("background_thread"),	CTL(opt_background_thread)},
 	{NAME("dirty_decay_ms"), CTL(opt_dirty_decay_ms)},
 	{NAME("muzzy_decay_ms"), CTL(opt_muzzy_decay_ms)},
+	{NAME("eager_coalesce"),	CTL(opt_eager_coalesce)},
 	{NAME("stats_print"),	CTL(opt_stats_print)},
 	{NAME("stats_print_opts"),	CTL(opt_stats_print_opts)},
 	{NAME("junk"),		CTL(opt_junk)},
@@ -1588,6 +1590,7 @@ CTL_RO_NL_GEN(opt_percpu_arena, percpu_arena_mode_names[opt_percpu_arena],
 CTL_RO_NL_GEN(opt_background_thread, opt_background_thread, bool)
 CTL_RO_NL_GEN(opt_dirty_decay_ms, opt_dirty_decay_ms, ssize_t)
 CTL_RO_NL_GEN(opt_muzzy_decay_ms, opt_muzzy_decay_ms, ssize_t)
+CTL_RO_NL_GEN(opt_eager_coalesce, opt_eager_coalesce, bool)
 CTL_RO_NL_GEN(opt_stats_print, opt_stats_print, bool)
 CTL_RO_NL_GEN(opt_stats_print_opts, opt_stats_print_opts, const char *)
 CTL_RO_NL_CGEN(config_fill, opt_junk, opt_junk, const char *)

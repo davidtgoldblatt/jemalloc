@@ -1107,6 +1107,7 @@ malloc_conf_init(void) {
 			    "muzzy_decay_ms", -1, NSTIME_SEC_MAX * KQU(1000) <
 			    QU(SSIZE_MAX) ? NSTIME_SEC_MAX * KQU(1000) :
 			    SSIZE_MAX);
+			CONF_HANDLE_BOOL(opt_eager_coalesce, "eager_coalesce")
 			CONF_HANDLE_BOOL(opt_stats_print, "stats_print")
 			if (CONF_MATCH("stats_print_opts")) {
 				init_opt_stats_print_opts(v, vlen);

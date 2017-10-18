@@ -9,6 +9,8 @@
 extern ssize_t opt_dirty_decay_ms;
 extern ssize_t opt_muzzy_decay_ms;
 
+extern bool opt_eager_coalesce;
+
 extern const arena_bin_info_t arena_bin_info[NBINS];
 
 extern percpu_arena_mode_t opt_percpu_arena;

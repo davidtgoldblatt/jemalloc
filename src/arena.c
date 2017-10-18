@@ -29,6 +29,8 @@ percpu_arena_mode_t opt_percpu_arena = PERCPU_ARENA_DEFAULT;
 ssize_t opt_dirty_decay_ms = DIRTY_DECAY_MS_DEFAULT;
 ssize_t opt_muzzy_decay_ms = MUZZY_DECAY_MS_DEFAULT;
 
+bool opt_eager_coalesce = false;
+
 static atomic_zd_t dirty_decay_ms_default;
 static atomic_zd_t muzzy_decay_ms_default;
 
@@ -1981,7 +1983,7 @@ arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 	 * merging/splitting extents is non-trivial.
 	 */
 	if (extents_init(tsdn, &arena->extents_dirty, extent_state_dirty,
-	    true)) {
+	    !opt_eager_coalesce)) {
 		goto label_error;
 	}
 	/*
