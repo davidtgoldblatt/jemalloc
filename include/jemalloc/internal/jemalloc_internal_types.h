@@ -49,9 +49,6 @@ typedef int malloc_cpuid_t;
 #define MALLOCX_ARENA_GET(flags)					\
     (((unsigned)(((unsigned)flags) >> MALLOCX_ARENA_SHIFT)) - 1)
 
-/* Smallest size class to support. */
-#define TINY_MIN		(1U << LG_TINY_MIN)
-
 #define LONG			((size_t)(1U << LG_SIZEOF_LONG))
 #define LONG_MASK		(LONG - 1)
 

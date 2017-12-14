@@ -4,7 +4,7 @@
 #include "jemalloc/internal/jemalloc_internal_types.h"
 #include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/rtree.h"
-#include "jemalloc/internal/size_classes.h"
+#include "jemalloc/internal/sc.h"
 #include "jemalloc/internal/sz.h"
 #include "jemalloc/internal/ticker.h"
 
@@ -90,7 +90,7 @@ arena_malloc(tsdn_t *tsdn, arena_t *arena, size_t size, szind_t ind, bool zero,
 	assert(size != 0);
 
 	if (likely(tcache != NULL)) {
-		if (likely(size <= SMALL_MAXCLASS)) {
+		if (likely(size <= sc_data_global.small_maxclass)) {
 			return tcache_alloc_small(tsdn_tsd(tsdn), arena,
 			    tcache, size, ind, zero, slow_path);
 		}
@@ -119,7 +119,7 @@ arena_salloc(tsdn_t *tsdn, const void *ptr) {
 
 	szind_t szind = rtree_szind_read(tsdn, &extents_rtree, rtree_ctx,
 	    (uintptr_t)ptr, true);
-	assert(szind != NSIZES);
+	assert(szind != SC_NSIZES);
 
 	return sz_index2size(szind);
 }
@@ -152,7 +152,7 @@ arena_vsalloc(tsdn_t *tsdn, const void *ptr) {
 	/* Only slab members should be looked up via interior pointers. */
 	assert(extent_addr_get(extent) == ptr || extent_slab_get(extent));
 
-	assert(szind != NSIZES);
+	assert(szind != SC_NSIZES);
 
 	return sz_index2size(szind);
 }
@@ -173,7 +173,7 @@ arena_dalloc_no_tcache(tsdn_t *tsdn, void *ptr) {
 		extent_t *extent = rtree_extent_read(tsdn, &extents_rtree,
 		    rtree_ctx, (uintptr_t)ptr, true);
 		assert(szind == extent_szind_get(extent));
-		assert(szind < NSIZES);
+		assert(szind < SC_NSIZES);
 		assert(slab == extent_slab_get(extent));
 	}
 
@@ -203,7 +203,7 @@ arena_dalloc(tsdn_t *tsdn, void *ptr, tcache_t *tcache,
 	if (alloc_ctx != NULL) {
 		szind = alloc_ctx->szind;
 		slab = alloc_ctx->slab;
-		assert(szind != NSIZES);
+		assert(szind != SC_NSIZES);
 	} else {
 		rtree_ctx = tsd_rtree_ctx(tsdn_tsd(tsdn));
 		rtree_szind_slab_read(tsdn, &extents_rtree, rtree_ctx,
@@ -215,7 +215,7 @@ arena_dalloc(tsdn_t *tsdn, void *ptr, tcache_t *tcache,
 		extent_t *extent = rtree_extent_read(tsdn, &extents_rtree,
 		    rtree_ctx, (uintptr_t)ptr, true);
 		assert(szind == extent_szind_get(extent));
-		assert(szind < NSIZES);
+		assert(szind < SC_NSIZES);
 		assert(slab == extent_slab_get(extent));
 	}
 
@@ -225,7 +225,7 @@ arena_dalloc(tsdn_t *tsdn, void *ptr, tcache_t *tcache,
 		    slow_path);
 	} else {
 		if (szind < nhbins) {
-			if (config_prof && unlikely(szind < NBINS)) {
+			if (config_prof && unlikely(szind < SC_NBINS)) {
 				arena_dalloc_promoted(tsdn, ptr, tcache,
 				    slow_path);
 			} else {
@@ -242,7 +242,7 @@ arena_dalloc(tsdn_t *tsdn, void *ptr, tcache_t *tcache,
 static inline void
 arena_sdalloc_no_tcache(tsdn_t *tsdn, void *ptr, size_t size) {
 	assert(ptr != NULL);
-	assert(size <= LARGE_MAXCLASS);
+	assert(size <= sc_data_global.large_maxclass);
 
 	szind_t szind;
 	bool slab;
@@ -252,7 +252,7 @@ arena_sdalloc_no_tcache(tsdn_t *tsdn, void *ptr, size_t size) {
 		 * object, so base szind and slab on the given size.
 		 */
 		szind = sz_size2index(size);
-		slab = (szind < NBINS);
+		slab = (szind < SC_NBINS);
 	}
 
 	if ((config_prof && opt_prof) || config_debug) {
@@ -264,7 +264,7 @@ arena_sdalloc_no_tcache(tsdn_t *tsdn, void *ptr, size_t size) {
 		    (uintptr_t)ptr, true, &szind, &slab);
 
 		assert(szind == sz_size2index(size));
-		assert((config_prof && opt_prof) || slab == (szind < NBINS));
+		assert((config_prof && opt_prof) || slab == (szind < SC_NBINS));
 
 		if (config_debug) {
 			extent_t *extent = rtree_extent_read(tsdn,
@@ -288,7 +288,7 @@ arena_sdalloc(tsdn_t *tsdn, void *ptr, size_t size, tcache_t *tcache,
     alloc_ctx_t *alloc_ctx, bool slow_path) {
 	assert(!tsdn_null(tsdn) || tcache == NULL);
 	assert(ptr != NULL);
-	assert(size <= LARGE_MAXCLASS);
+	assert(size <= sc_data_global.large_maxclass);
 
 	if (unlikely(tcache == NULL)) {
 		arena_sdalloc_no_tcache(tsdn, ptr, size);
@@ -318,7 +318,7 @@ arena_sdalloc(tsdn_t *tsdn, void *ptr, size_t size, tcache_t *tcache,
 		 * object, so base szind and slab on the given size.
 		 */
 		szind = sz_size2index(size);
-		slab = (szind < NBINS);
+		slab = (szind < SC_NBINS);
 	}
 
 	if (config_debug) {
@@ -337,7 +337,7 @@ arena_sdalloc(tsdn_t *tsdn, void *ptr, size_t size, tcache_t *tcache,
 		    slow_path);
 	} else {
 		if (szind < nhbins) {
-			if (config_prof && unlikely(szind < NBINS)) {
+			if (config_prof && unlikely(szind < SC_NBINS)) {
 				arena_dalloc_promoted(tsdn, ptr, tcache,
 				    slow_path);
 			} else {

@@ -4,7 +4,6 @@
 #include "jemalloc/internal/bin.h"
 #include "jemalloc/internal/extent_dss.h"
 #include "jemalloc/internal/pages.h"
-#include "jemalloc/internal/size_classes.h"
 #include "jemalloc/internal/stats.h"
 
 extern ssize_t opt_dirty_decay_ms;

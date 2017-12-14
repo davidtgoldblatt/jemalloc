@@ -4,7 +4,7 @@
 #include "jemalloc/internal/atomic.h"
 #include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/mutex_prof.h"
-#include "jemalloc/internal/size_classes.h"
+#include "jemalloc/internal/sc.h"
 
 /*
  * In those architectures that support 64-bit atomics, we use atomic updates for
@@ -88,7 +88,7 @@ struct arena_stats_s {
 	mutex_prof_data_t mutex_prof_data[mutex_prof_num_arena_mutexes];
 
 	/* One element for each large size class. */
-	arena_stats_large_t	lstats[NSIZES - NBINS];
+	arena_stats_large_t	lstats[SC_NSIZES - SC_NBINS];
 
 	/* Arena uptime. */
 	nstime_t		uptime;
@@ -222,7 +222,7 @@ arena_stats_large_nrequests_add(tsdn_t *tsdn, arena_stats_t *arena_stats,
     szind_t szind, uint64_t nrequests) {
 	arena_stats_lock(tsdn, arena_stats);
 	arena_stats_add_u64(tsdn, arena_stats, &arena_stats->lstats[szind -
-	    NBINS].nrequests, nrequests);
+	    SC_NBINS].nrequests, nrequests);
 	arena_stats_unlock(tsdn, arena_stats);
 }
 
@@ -232,6 +232,5 @@ arena_stats_mapped_add(tsdn_t *tsdn, arena_stats_t *arena_stats, size_t size) {
 	arena_stats_add_zu(tsdn, arena_stats, &arena_stats->mapped, size);
 	arena_stats_unlock(tsdn, arena_stats);
 }
-
 
 #endif /* JEMALLOC_INTERNAL_ARENA_STATS_H */
