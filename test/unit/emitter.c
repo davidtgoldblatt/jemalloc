@@ -41,14 +41,14 @@ assert_emit_output(void (*emit_fn)(emitter_t *),
 
 	buf_descriptor.buf = buf;
 	buf_descriptor.len = MALLOC_PRINTF_BUFSIZE;
-	emitter_init(&emitter, emitter_type_json, &forwarding_cb,
+	emitter_init(&emitter, emitter_output_json, &forwarding_cb,
 	    &buf_descriptor);
 	(*emit_fn)(&emitter);
 	assert_str_eq(expected_json_output, buf, "json output failure");
 
 	buf_descriptor.buf = buf;
 	buf_descriptor.len = MALLOC_PRINTF_BUFSIZE;
-	emitter_init(&emitter, emitter_type_table, &forwarding_cb,
+	emitter_init(&emitter, emitter_output_table, &forwarding_cb,
 	    &buf_descriptor);
 	(*emit_fn)(&emitter);
 	assert_str_eq(expected_table_output, buf, "table output failure");
@@ -56,12 +56,17 @@ assert_emit_output(void (*emit_fn)(emitter_t *),
 
 static void
 emit_vdict(emitter_t *emitter) {
+	bool b_false = false;
+	bool b_true = true;
+	int i_123 = 123;
+	const char *str = "a string";
+
 	emitter_begin(emitter);
 	emitter_vdict_begin(emitter, "foo", "This is the foo table:");
-	emitter_vdict_kv(emitter, "abc", "false");
-	emitter_vdict_kv(emitter, "def", "true");
-	emitter_vdict_kv(emitter, "ghi", "123");
-	emitter_vdict_kv(emitter, "jkl", "\"a string\"");
+	emitter_vdict_kv(emitter, "abc", emitter_type_bool, &b_false);
+	emitter_vdict_kv(emitter, "def", emitter_type_bool, &b_true);
+	emitter_vdict_kv(emitter, "ghi", emitter_type_int, &i_123);
+	emitter_vdict_kv(emitter, "jkl", emitter_type_string, &str);
 	emitter_vdict_end(emitter);
 	emitter_end(emitter);
 }
@@ -166,17 +171,27 @@ TEST_END
 
 static void
 emit_simple_kv(emitter_t *emitter) {
+	const char *strval = "a string";
+	int intval = 123;
+	bool boolval = true;
+
 	emitter_begin(emitter);
 	emitter_json_dict_begin(emitter, "nest1");
 	emitter_json_dict_begin(emitter, "nest2");
-	emitter_simple_kv(emitter, "json_key1", "Table key 1", "val1");
-	emitter_simple_kv(emitter, "json_key2", "Table key 2", "val2");
+	emitter_simple_kv(emitter, "json_key1", "Table key 1",
+	    emitter_type_string, &strval);
+	emitter_simple_kv(emitter, "json_key2", "Table key 2",
+	    emitter_type_string, &strval);
 	emitter_json_dict_end(emitter); /* Ends nest2 */
-	emitter_simple_kv(emitter, "json_key3", "Table key 3", "val3");
-	emitter_simple_kv(emitter, "json_key4", "Table key 4", "val4");
+	emitter_simple_kv(emitter, "json_key3", "Table key 3",
+	    emitter_type_int, &intval);
+	emitter_simple_kv(emitter, "json_key4", "Table key 4",
+	    emitter_type_bool, &boolval);
 	emitter_json_dict_end(emitter); /* Ends nest1 */
-	emitter_simple_kv(emitter, "json_key5", "Table key 5", "val5");
-	emitter_simple_kv(emitter, "json_key6", "Table key 6", "val6");
+	emitter_simple_kv(emitter, "json_key5", "Table key 5",
+	    emitter_type_bool, &boolval);
+	emitter_simple_kv(emitter, "json_key6", "Table key 6",
+	    emitter_type_string, &strval);
 	emitter_end(emitter);
 }
 
@@ -184,23 +199,23 @@ static const char *simple_kv_json =
 "{\n"
 "\t\"nest1\": {\n"
 "\t\t\"nest2\": {\n"
-"\t\t\t\"json_key1\": val1,\n"
-"\t\t\t\"json_key2\": val2\n"
+"\t\t\t\"json_key1\": \"a string\",\n"
+"\t\t\t\"json_key2\": \"a string\"\n"
 "\t\t},\n"
-"\t\t\"json_key3\": val3,\n"
-"\t\t\"json_key4\": val4\n"
+"\t\t\"json_key3\": 123,\n"
+"\t\t\"json_key4\": true\n"
 "\t},\n"
-"\t\"json_key5\": val5,\n"
-"\t\"json_key6\": val6\n"
+"\t\"json_key5\": true,\n"
+"\t\"json_key6\": \"a string\"\n"
 "}\n";
 
 static const char *simple_kv_table =
-"Table key 1: val1\n"
-"Table key 2: val2\n"
-"Table key 3: val3\n"
-"Table key 4: val4\n"
-"Table key 5: val5\n"
-"Table key 6: val6\n";
+"Table key 1: \"a string\"\n"
+"Table key 2: \"a string\"\n"
+"Table key 3: 123\n"
+"Table key 4: true\n"
+"Table key 5: true\n"
+"Table key 6: \"a string\"\n";
 
 TEST_BEGIN(test_simple_kv) {
 	assert_emit_output(&emit_simple_kv, simple_kv_json, simple_kv_table);

@@ -1280,8 +1280,9 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 	}
 
 	emitter_t emitter;
-	emitter_init(&emitter, json ? emitter_type_json : emitter_type_table,
-	    write_cb, cbopaque);
+	emitter_init(&emitter,
+	    json ? emitter_output_json : emitter_output_table, write_cb,
+	    cbopaque);
 	emitter_begin(&emitter);
 	emitter_table_note(&emitter, "___ Begin jemalloc statistics ___");
 	emitter_json_dict_begin(&emitter, "jemalloc");

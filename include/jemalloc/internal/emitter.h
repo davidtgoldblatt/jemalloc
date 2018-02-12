@@ -1,15 +1,22 @@
 #ifndef JEMALLOC_INTERNAL_EMITTER_H
 #define JEMALLOC_INTERNAL_EMITTER_H
 
+typedef enum emitter_output_e emitter_output_t;
+enum emitter_output_e {
+	emitter_output_json,
+	emitter_output_table
+};
+
 typedef enum emitter_type_e emitter_type_t;
 enum emitter_type_e {
-	emitter_type_json,
-	emitter_type_table
+	emitter_type_bool,
+	emitter_type_int,
+	emitter_type_string
 };
 
 typedef struct emitter_s emitter_t;
 struct emitter_s {
-	emitter_type_t type;
+	emitter_output_t output;
 	/* Just for debugging.  Vdicts aren't allowed to nest. */
 	bool in_vdict;
 	void (*write_cb)(void *, const char *);
@@ -35,13 +42,13 @@ struct emitter_s {
 };
 
 static inline void
-emitter_init(emitter_t *emitter, emitter_type_t emitter_type,
+emitter_init(emitter_t *emitter, emitter_output_t emitter_output,
     void (*write_cb)(void *, const char *), void *cbopaque) {
-	emitter->type = emitter_type;
+	emitter->output = emitter_output;
 	emitter->in_vdict = false;
 	emitter->write_cb = write_cb;
 	emitter->cbopaque = cbopaque;
-	if (emitter_type == emitter_type_json) {
+	if (emitter_output == emitter_output_json) {
 		emitter->key_at_depth = 0;
 		emitter->nesting_depth = 0;
 	} else {
@@ -63,7 +70,7 @@ emitter_printf(emitter_t *emitter, const char *format, ...) {
 /* Internal. Do a variety of sanity checks on the emitter. */
 static inline void
 emitter_json_assert_state(emitter_t *emitter) {
-	assert(emitter->type == emitter_type_json);
+	assert(emitter->output == emitter_output_json);
 	assert(emitter->nesting_depth >= 0);
 	assert(emitter->nesting_depth < 64);
 	unsigned long long mask = ~((1ULL << (emitter->nesting_depth + 1)) - 1);
@@ -136,10 +143,40 @@ emitter_json_key_prefix(emitter_t *emitter) {
 	}
 }
 
+/*
+ * Internal.  Emit the given given value type in the relevant encoding (so that
+ * the bool true gets mapped to json "true", but the string "true" gets mapped
+ * to json "\"true\"", for instance.
+ */
+static inline void
+emitter_print_value(emitter_t *emitter, emitter_type_t value_type,
+    const void *value) {
+	const bool *boolp;
+	const char *const *charpp;
+	const int *intp;
+
+	switch (value_type) {
+	case emitter_type_bool:
+		boolp = (const bool *)value;
+		emitter_printf(emitter, "%s", *boolp ? "true" : "false");
+		break;
+	case emitter_type_int:
+		intp = (const int *)value;
+		emitter_printf(emitter, "%d", *intp);
+		break;
+	case emitter_type_string:
+		charpp = (const char *const *)value;
+		emitter_printf(emitter, "\"%s\"", *charpp);
+		break;
+	default:
+		unreachable();
+	}
+}
+
 /* Begin actually writing to the output. */
 static inline void
 emitter_begin(emitter_t *emitter) {
-	if (emitter->type == emitter_type_json) {
+	if (emitter->output == emitter_output_json) {
 		assert(emitter->nesting_depth == 0);
 		emitter_printf(emitter, "{");
 		++emitter->nesting_depth;
@@ -151,7 +188,7 @@ emitter_begin(emitter_t *emitter) {
 
 static inline void
 emitter_end(emitter_t *emitter) {
-	if (emitter->type == emitter_type_json) {
+	if (emitter->output == emitter_output_json) {
 		assert(emitter->nesting_depth == 1);
 		emitter_json_dict_finish(emitter);
 		emitter_printf(emitter, "\n");
@@ -181,7 +218,7 @@ emitter_vdict_begin(emitter_t *emitter, const char *vdict_name,
 	assert(!emitter->in_vdict);
 	emitter->in_vdict = true;
 
-	if (emitter->type == emitter_type_json) {
+	if (emitter->output == emitter_output_json) {
 		emitter_json_key_prefix(emitter);
 		emitter_printf(emitter, "\"%s\": {", vdict_name);
 		++emitter->nesting_depth;
@@ -196,27 +233,31 @@ emitter_vdict_end(emitter_t *emitter) {
 	assert(emitter->in_vdict);
 	emitter->in_vdict = false;
 
-	if (emitter->type == emitter_type_json) {
+	if (emitter->output == emitter_output_json) {
 		emitter_json_dict_finish(emitter);
 	}
 }
 
 static inline void
-emitter_vdict_kv(emitter_t *emitter, const char *key, const char* value) {
+emitter_vdict_kv(emitter_t *emitter, const char *key,
+    emitter_type_t value_type, const void* value) {
 	assert(emitter->in_vdict);
-	if (emitter->type == emitter_type_json) {
+	if (emitter->output == emitter_output_json) {
 		emitter_json_key_prefix(emitter);
-		emitter_printf(emitter, "\"%s\": %s", key, value);
+		emitter_printf(emitter, "\"%s\": ", key);
+		emitter_print_value(emitter, value_type, value);
 	} else {
-		emitter_printf(emitter, "  %s.%s: %s\n", emitter->vdict_name,
-		    key, value);
+		emitter_printf(emitter, "  %s.%s: ", emitter->vdict_name,
+		    key);
+		emitter_print_value(emitter, value_type, value);
+		emitter_printf(emitter, "\n");
 	}
 }
 
 /* Begin a dict that appears only in the json output. */
 static inline void
 emitter_json_dict_begin(emitter_t *emitter, const char *dict_name) {
-	if (emitter->type != emitter_type_json) {
+	if (emitter->output != emitter_output_json) {
 		return;
 	}
 	emitter_json_assert_state(emitter);
@@ -229,7 +270,7 @@ emitter_json_dict_begin(emitter_t *emitter, const char *dict_name) {
 
 static inline void
 emitter_json_dict_end(emitter_t *emitter) {
-	if (emitter->type != emitter_type_json) {
+	if (emitter->output != emitter_output_json) {
 		return;
 	}
 	emitter_json_assert_state(emitter);
@@ -245,12 +286,15 @@ emitter_json_dict_end(emitter_t *emitter) {
  */
 static inline void
 emitter_simple_kv(emitter_t *emitter, const char *json_key,
-    const char *table_key, const char *value) {
-	if (emitter->type == emitter_type_json) {
+    const char *table_key, emitter_type_t value_type, const void *value) {
+	if (emitter->output == emitter_output_json) {
 		emitter_json_key_prefix(emitter);
-		emitter_printf(emitter, "\"%s\": %s", json_key, value);
+		emitter_printf(emitter, "\"%s\": ", json_key);
+		emitter_print_value(emitter, value_type, value);
 	} else {
-		emitter_printf(emitter, "%s: %s\n", table_key, value);
+		emitter_printf(emitter, "%s: ", table_key);
+		emitter_print_value(emitter, value_type, value);
+		emitter_printf(emitter, "\n");
 	}
 }
 
@@ -260,7 +304,7 @@ emitter_table_note(emitter_t *emitter, const char *format, ...) {
 	va_list ap;
 
 	va_start(ap, format);
-	if (emitter->type == emitter_type_table) {
+	if (emitter->output == emitter_output_table) {
 		malloc_vcprintf(emitter->write_cb, emitter->cbopaque, format, ap);
 		emitter_printf(emitter, "\n");
 	}
