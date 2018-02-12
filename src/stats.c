@@ -659,8 +659,15 @@ stats_arena_print(void (*write_cb)(void *, const char *), void *cbopaque,
 }
 
 static void
-stats_general_print(void (*write_cb)(void *, const char *), void *cbopaque,
-    bool json, bool more) {
+stats_general_print(emitter_t *emitter, bool more) {
+	/*
+	 * These should eventually be deleted; they are useful in converting
+	 * from manual to emitter-based stats output, though.
+	 */
+	void (*write_cb)(void *, const char *) = emitter->write_cb;
+	void *cbopaque = emitter->cbopaque;
+	bool json = (emitter->output == emitter_output_json);
+
 	const char *cpv;
 	bool bv;
 	unsigned uv;
@@ -676,65 +683,40 @@ stats_general_print(void (*write_cb)(void *, const char *), void *cbopaque,
 	cpsz = sizeof(const char *);
 
 	CTL_GET("version", &cpv, const char *);
-	if (json) {
-		malloc_cprintf(write_cb, cbopaque,
-		"\n\t\t\"version\": \"%s\",\n", cpv);
-	} else {
-		malloc_cprintf(write_cb, cbopaque, "Version: %s\n", cpv);
-	}
+	emitter_simple_kv(emitter, "version", "Version", emitter_type_string,
+	    &cpv);
 
 	/* config. */
-#define CONFIG_WRITE_BOOL_JSON(n, c)					\
-	if (json) {							\
-		CTL_GET("config."#n, &bv, bool);			\
-		malloc_cprintf(write_cb, cbopaque,			\
-		    "\t\t\t\""#n"\": %s%s\n", bv ? "true" : "false",	\
-		    (c));						\
-	}
+	emitter_vdict_begin(emitter, "config", "Build-time option settings");
+#define CONFIG_WRITE_BOOL(name)						\
+	do {								\
+		CTL_GET("config."#name, &bv, bool);			\
+		emitter_vdict_kv(emitter, #name, emitter_type_bool,	\
+		    &bv);						\
+	} while (0)
 
-	if (json) {
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\"config\": {\n");
-	}
+	CONFIG_WRITE_BOOL(cache_oblivious);
+	CONFIG_WRITE_BOOL(debug);
+	CONFIG_WRITE_BOOL(fill);
+	CONFIG_WRITE_BOOL(lazy_lock);
+	emitter_vdict_kv(emitter, "malloc_conf", emitter_type_string,
+	    &config_malloc_conf);
+	CONFIG_WRITE_BOOL(prof);
 
-	CONFIG_WRITE_BOOL_JSON(cache_oblivious, ",")
-
-	CTL_GET("config.debug", &bv, bool);
-	if (json) {
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\"debug\": %s,\n", bv ? "true" : "false");
-	} else {
-		malloc_cprintf(write_cb, cbopaque, "Assertions %s\n",
-		    bv ? "enabled" : "disabled");
-	}
-
-	CONFIG_WRITE_BOOL_JSON(fill, ",")
-	CONFIG_WRITE_BOOL_JSON(lazy_lock, ",")
-
-	if (json) {
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\"malloc_conf\": \"%s\",\n",
-		    config_malloc_conf);
-	} else {
-		malloc_cprintf(write_cb, cbopaque,
-		    "config.malloc_conf: \"%s\"\n", config_malloc_conf);
-	}
-
-	CONFIG_WRITE_BOOL_JSON(prof, ",")
-	CONFIG_WRITE_BOOL_JSON(prof_libgcc, ",")
-	CONFIG_WRITE_BOOL_JSON(prof_libunwind, ",")
-	CONFIG_WRITE_BOOL_JSON(stats, ",")
-	CONFIG_WRITE_BOOL_JSON(thp, ",")
-	CONFIG_WRITE_BOOL_JSON(utrace, ",")
-	CONFIG_WRITE_BOOL_JSON(xmalloc, "")
-
-	if (json) {
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t},\n");
-	}
-#undef CONFIG_WRITE_BOOL_JSON
+	CONFIG_WRITE_BOOL(prof);
+	CONFIG_WRITE_BOOL(prof_libgcc);
+	CONFIG_WRITE_BOOL(prof_libunwind);
+	CONFIG_WRITE_BOOL(stats);
+	CONFIG_WRITE_BOOL(thp);
+	CONFIG_WRITE_BOOL(utrace);
+	CONFIG_WRITE_BOOL(xmalloc);
+#undef CONFIG_WRITE_BOOL
+	emitter_vdict_end(emitter); /* Close "config" vdict. */
 
 	/* opt. */
+	if (json) {
+		malloc_cprintf(write_cb, cbopaque, ",\n");
+	}
 #define OPT_WRITE_BOOL(n, c)						\
 	if (je_mallctl("opt."#n, (void *)&bv, &bsz, NULL, 0) == 0) {	\
 		if (json) {						\
@@ -1288,7 +1270,7 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 	emitter_json_dict_begin(&emitter, "jemalloc");
 
 	if (general) {
-		stats_general_print(write_cb, cbopaque, json, config_stats);
+		stats_general_print(&emitter, config_stats);
 	}
 	if (config_stats) {
 		stats_print_helper(write_cb, cbopaque, json, merged, destroyed,
