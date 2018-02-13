@@ -312,6 +312,21 @@ emitter_json_dict_end(emitter_t *emitter) {
 
 /*
  * Emits
+ *   "key": value
+ * in json mode, and nothing in table mode.
+ */
+static inline void
+emitter_json_simple_kv(emitter_t *emitter, const char *key,
+    emitter_type_t value_type, const void *value) {
+	if (emitter->output == emitter_output_json) {
+		emitter_json_key_prefix(emitter);
+		emitter_printf(emitter, "\"%s\": ", key);
+		emitter_print_value(emitter, value_type, value);
+	}
+}
+
+/*
+ * Emits
  *   "json_key": value
  * in json mode, and
  *   Table_key: value
@@ -321,9 +336,7 @@ static inline void
 emitter_simple_kv(emitter_t *emitter, const char *json_key,
     const char *table_key, emitter_type_t value_type, const void *value) {
 	if (emitter->output == emitter_output_json) {
-		emitter_json_key_prefix(emitter);
-		emitter_printf(emitter, "\"%s\": ", json_key);
-		emitter_print_value(emitter, value_type, value);
+		emitter_json_simple_kv(emitter, json_key, value_type, value);
 	} else {
 		emitter_printf(emitter, "%s: ", table_key);
 		emitter_print_value(emitter, value_type, value);

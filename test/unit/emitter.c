@@ -225,6 +225,34 @@ TEST_BEGIN(test_simple_kv) {
 TEST_END
 
 static void
+emit_json_simple_kv(emitter_t *emitter) {
+	int ival = 123;
+
+	emitter_begin(emitter);
+	emitter_simple_kv(emitter, "j1", "J1", emitter_type_int, &ival);
+	emitter_json_simple_kv(emitter, "j2", emitter_type_int, &ival);
+	emitter_simple_kv(emitter, "j3", "J3", emitter_type_int, &ival);
+	emitter_end(emitter);
+}
+
+static const char *json_simple_kv_json =
+"{\n"
+"\t\"j1\": 123,\n"
+"\t\"j2\": 123,\n"
+"\t\"j3\": 123\n"
+"}\n";
+
+static const char *json_simple_kv_table =
+"J1: 123\n"
+"J3: 123\n";
+
+TEST_BEGIN(test_json_simple_kv) {
+	assert_emit_output(&emit_json_simple_kv, json_simple_kv_json,
+	    json_simple_kv_table);
+}
+TEST_END
+
+static void
 emit_types(emitter_t *emitter) {
 	bool b = false;
 	int i = -123;
@@ -269,5 +297,6 @@ main(void) {
 	    test_table_note,
 	    test_emit_json_dict,
 	    test_simple_kv,
+	    test_json_simple_kv,
 	    test_types);
 }
