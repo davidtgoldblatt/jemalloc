@@ -258,6 +258,7 @@ emit_types(emitter_t *emitter) {
 	int i = -123;
 	unsigned u = 123;
 	ssize_t zd = -456;
+	size_t zu = 456;
 	const char *str = "string";
 
 	emitter_begin(emitter);
@@ -265,7 +266,8 @@ emit_types(emitter_t *emitter) {
 	emitter_simple_kv(emitter, "k2", "K2", emitter_type_int, &i);
 	emitter_simple_kv(emitter, "k3", "K3", emitter_type_unsigned, &u);
 	emitter_simple_kv(emitter, "k4", "K4", emitter_type_ssize, &zd);
-	emitter_simple_kv(emitter, "k5", "K5", emitter_type_string, &str);
+	emitter_simple_kv(emitter, "k5", "K5", emitter_type_size, &zu);
+	emitter_simple_kv(emitter, "k6", "K6", emitter_type_string, &str);
 	emitter_end(emitter);
 }
 
@@ -275,7 +277,8 @@ static const char *types_json =
 "\t\"k2\": -123,\n"
 "\t\"k3\": 123,\n"
 "\t\"k4\": -456,\n"
-"\t\"k5\": \"string\"\n"
+"\t\"k5\": 456,\n"
+"\t\"k6\": \"string\"\n"
 "}\n";
 
 static const char *types_table =
@@ -283,7 +286,8 @@ static const char *types_table =
 "K2: -123\n"
 "K3: 123\n"
 "K4: -456\n"
-"K5: \"string\"\n";
+"K5: 456\n"
+"K6: \"string\"\n";
 
 TEST_BEGIN(test_types) {
 	assert_emit_output(&emit_types, types_json, types_table);
