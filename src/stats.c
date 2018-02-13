@@ -660,14 +660,6 @@ stats_arena_print(void (*write_cb)(void *, const char *), void *cbopaque,
 
 static void
 stats_general_print(emitter_t *emitter, bool more) {
-	/*
-	 * These should eventually be deleted; they are useful in converting
-	 * from manual to emitter-based stats output, though.
-	 */
-	void (*write_cb)(void *, const char *) = emitter->write_cb;
-	void *cbopaque = emitter->cbopaque;
-	bool json = (emitter->output == emitter_output_json);
-
 	const char *cpv;
 	bool bv, bv2;
 	unsigned uv;
@@ -903,13 +895,6 @@ stats_general_print(emitter_t *emitter, bool more) {
 		    &ssv);
 
 		emitter_json_dict_end(emitter); /* Close "prof". */
-	}
-	if (json) {
-		if (more) {
-			malloc_cprintf(write_cb, cbopaque, ",\n");
-		} else {
-			malloc_cprintf(write_cb, cbopaque, "\n");
-		}
 	}
 }
 
@@ -1199,6 +1184,13 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 
 	if (general) {
 		stats_general_print(&emitter, config_stats);
+		if (json) {
+			if (config_stats) {
+				malloc_cprintf(write_cb, cbopaque, ",\n");
+			} else {
+				malloc_cprintf(write_cb, cbopaque, "\n");
+			}
+		}
 	}
 	if (config_stats) {
 		stats_print_helper(write_cb, cbopaque, json, merged, destroyed,
