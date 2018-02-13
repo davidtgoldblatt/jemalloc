@@ -821,62 +821,59 @@ stats_general_print(emitter_t *emitter, bool more) {
 		    "Maximum thread-cached size class", emitter_type_size, &sv);
 	}
 
-	if (json) {
-		malloc_cprintf(write_cb, cbopaque, ",\n");
+	unsigned nbins;
+	CTL_GET("arenas.nbins", &nbins, unsigned);
+	emitter_simple_kv(emitter, "nbins", "Number of bin size classes",
+	    emitter_type_unsigned, &nbins);
 
-		unsigned nbins, nlextents, i;
+	unsigned nhbins;
+	CTL_GET("arenas.nhbins", &nhbins, unsigned);
+	emitter_simple_kv(emitter, "nhbins",
+	    "Number of thread-cache bin size classes", emitter_type_unsigned,
+	    &nhbins);
 
-		CTL_GET("arenas.nbins", &nbins, unsigned);
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\"nbins\": %u,\n", nbins);
-
-		CTL_GET("arenas.nhbins", &uv, unsigned);
-		malloc_cprintf(write_cb, cbopaque, "\t\t\t\"nhbins\": %u,\n",
-		    uv);
-
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\"bin\": [\n");
-		for (i = 0; i < nbins; i++) {
-			malloc_cprintf(write_cb, cbopaque,
-			    "\t\t\t\t{\n");
+	/*
+	 * We do enough mallctls in a loop that we actually want to omit them
+	 * (not just omit the printing).
+	 */
+	if (emitter->output == emitter_output_json) {
+		emitter_json_arr_begin(emitter, "bin");
+		for (unsigned i = 0; i < nbins; i++) {
+			emitter_json_arr_dict_begin(emitter);
 
 			CTL_M2_GET("arenas.bin.0.size", i, &sv, size_t);
-			malloc_cprintf(write_cb, cbopaque,
-			    "\t\t\t\t\t\"size\": %zu,\n", sv);
+			emitter_json_simple_kv(emitter, "size",
+			    emitter_type_size, &sv);
 
 			CTL_M2_GET("arenas.bin.0.nregs", i, &u32v, uint32_t);
-			malloc_cprintf(write_cb, cbopaque,
-			    "\t\t\t\t\t\"nregs\": %"FMTu32",\n", u32v);
+			emitter_json_simple_kv(emitter, "nregs",
+			    emitter_type_uint32, &u32v);
 
 			CTL_M2_GET("arenas.bin.0.slab_size", i, &sv, size_t);
-			malloc_cprintf(write_cb, cbopaque,
-			    "\t\t\t\t\t\"slab_size\": %zu\n", sv);
+			emitter_json_simple_kv(emitter, "slab_size",
+			    emitter_type_size, &sv);
 
-			malloc_cprintf(write_cb, cbopaque,
-			    "\t\t\t\t}%s\n", (i + 1 < nbins) ? "," : "");
+			emitter_json_arr_dict_end(emitter);
 		}
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t],\n");
+		emitter_json_arr_end(emitter); /* Close "bin". */
+	}
 
-		CTL_GET("arenas.nlextents", &nlextents, unsigned);
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\"nlextents\": %u,\n", nlextents);
-
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\"lextent\": [\n");
-		for (i = 0; i < nlextents; i++) {
-			malloc_cprintf(write_cb, cbopaque,
-			    "\t\t\t\t{\n");
+	unsigned nlextents;
+	CTL_GET("arenas.nlextents", &nlextents, unsigned);
+	emitter_simple_kv(emitter, "nlextents", "Number of large size classes",
+	    emitter_type_unsigned, &nlextents);
+	if (emitter->output == emitter_output_json) {
+		emitter_json_arr_begin(emitter, "lextent");
+		for (unsigned i = 0; i < nlextents; i++) {
+			emitter_json_arr_dict_begin(emitter);
 
 			CTL_M2_GET("arenas.lextent.0.size", i, &sv, size_t);
-			malloc_cprintf(write_cb, cbopaque,
-			    "\t\t\t\t\t\"size\": %zu\n", sv);
+			emitter_json_simple_kv(emitter, "size",
+			    emitter_type_size, &sv);
 
-			malloc_cprintf(write_cb, cbopaque,
-			    "\t\t\t\t}%s\n", (i + 1 < nlextents) ? "," : "");
+			emitter_json_arr_dict_end(emitter);
 		}
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t]\n");
+		emitter_json_arr_end(emitter); /* Close "lextent". */
 	}
 
 	emitter_json_dict_end(emitter); /* Close "arenas" */
