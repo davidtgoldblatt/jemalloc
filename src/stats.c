@@ -669,11 +669,11 @@ stats_general_print(emitter_t *emitter, bool more) {
 	bool json = (emitter->output == emitter_output_json);
 
 	const char *cpv;
-	bool bv;
+	bool bv, bv2;
 	unsigned uv;
 	uint32_t u32v;
 	uint64_t u64v;
-	ssize_t ssv;
+	ssize_t ssv, ssv2;
 	size_t sv, bsz, usz, ssz, sssz, cpsz;
 
 	bsz = sizeof(bool);
@@ -714,136 +714,84 @@ stats_general_print(emitter_t *emitter, bool more) {
 	emitter_vdict_end(emitter); /* Close "config" vdict. */
 
 	/* opt. */
-	if (json) {
-		malloc_cprintf(write_cb, cbopaque, ",\n");
-	}
-#define OPT_WRITE_BOOL(n, c)						\
-	if (je_mallctl("opt."#n, (void *)&bv, &bsz, NULL, 0) == 0) {	\
-		if (json) {						\
-			malloc_cprintf(write_cb, cbopaque,		\
-			    "\t\t\t\""#n"\": %s%s\n", bv ? "true" :	\
-			    "false", (c));				\
-		} else {						\
-			malloc_cprintf(write_cb, cbopaque,		\
-			    "  opt."#n": %s\n", bv ? "true" : "false");	\
-		}							\
-	}
-#define OPT_WRITE_BOOL_MUTABLE(n, m, c) {				\
-	bool bv2;							\
-	if (je_mallctl("opt."#n, (void *)&bv, &bsz, NULL, 0) == 0 &&	\
-	    je_mallctl(#m, (void *)&bv2, &bsz, NULL, 0) == 0) {		\
-		if (json) {						\
-			malloc_cprintf(write_cb, cbopaque,		\
-			    "\t\t\t\""#n"\": %s%s\n", bv ? "true" :	\
-			    "false", (c));				\
-		} else {						\
-			malloc_cprintf(write_cb, cbopaque,		\
-			    "  opt."#n": %s ("#m": %s)\n", bv ? "true"	\
-			    : "false", bv2 ? "true" : "false");		\
-		}							\
-	}								\
-}
-#define OPT_WRITE_UNSIGNED(n, c)					\
-	if (je_mallctl("opt."#n, (void *)&uv, &usz, NULL, 0) == 0) {	\
-		if (json) {						\
-			malloc_cprintf(write_cb, cbopaque,		\
-			    "\t\t\t\""#n"\": %u%s\n", uv, (c));		\
-		} else {						\
-			malloc_cprintf(write_cb, cbopaque,		\
-			"  opt."#n": %u\n", uv);			\
-		}							\
-	}
-#define OPT_WRITE_SSIZE_T(n, c)						\
-	if (je_mallctl("opt."#n, (void *)&ssv, &sssz, NULL, 0) == 0) {	\
-		if (json) {						\
-			malloc_cprintf(write_cb, cbopaque,		\
-			    "\t\t\t\""#n"\": %zd%s\n", ssv, (c));	\
-		} else {						\
-			malloc_cprintf(write_cb, cbopaque,		\
-			    "  opt."#n": %zd\n", ssv);			\
-		}							\
-	}
-#define OPT_WRITE_SSIZE_T_MUTABLE(n, m, c) {				\
-	ssize_t ssv2;							\
-	if (je_mallctl("opt."#n, (void *)&ssv, &sssz, NULL, 0) == 0 &&	\
-	    je_mallctl(#m, (void *)&ssv2, &sssz, NULL, 0) == 0) {	\
-		if (json) {						\
-			malloc_cprintf(write_cb, cbopaque,		\
-			    "\t\t\t\""#n"\": %zd%s\n", ssv, (c));	\
-		} else {						\
-			malloc_cprintf(write_cb, cbopaque,		\
-			    "  opt."#n": %zd ("#m": %zd)\n",		\
-			    ssv, ssv2);					\
-		}							\
-	}								\
-}
-#define OPT_WRITE_CHAR_P(n, c)						\
-	if (je_mallctl("opt."#n, (void *)&cpv, &cpsz, NULL, 0) == 0) {	\
-		if (json) {						\
-			malloc_cprintf(write_cb, cbopaque,		\
-			    "\t\t\t\""#n"\": \"%s\"%s\n", cpv, (c));	\
-		} else {						\
-			malloc_cprintf(write_cb, cbopaque,		\
-			    "  opt."#n": \"%s\"\n", cpv);		\
-		}							\
+#define OPT_WRITE(name, var, size, emitter_type)			\
+	if (je_mallctl("opt."#name, (void *)&var, &size, NULL, 0) ==	\
+	    0) {							\
+		emitter_vdict_kv(emitter, #name, emitter_type, &var);	\
 	}
 
-	if (json) {
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\"opt\": {\n");
-	} else {
-		malloc_cprintf(write_cb, cbopaque,
-		    "Run-time option settings:\n");
-	}
-	OPT_WRITE_BOOL(abort, ",")
-	OPT_WRITE_BOOL(abort_conf, ",")
-	OPT_WRITE_BOOL(retain, ",")
-	OPT_WRITE_CHAR_P(dss, ",")
-	OPT_WRITE_UNSIGNED(narenas, ",")
-	OPT_WRITE_CHAR_P(percpu_arena, ",")
-	OPT_WRITE_CHAR_P(metadata_thp, ",")
-	OPT_WRITE_BOOL_MUTABLE(background_thread, background_thread, ",")
-	OPT_WRITE_SSIZE_T_MUTABLE(dirty_decay_ms, arenas.dirty_decay_ms, ",")
-	OPT_WRITE_SSIZE_T_MUTABLE(muzzy_decay_ms, arenas.muzzy_decay_ms, ",")
-	OPT_WRITE_UNSIGNED(lg_extent_max_active_fit, ",")
-	OPT_WRITE_CHAR_P(junk, ",")
-	OPT_WRITE_BOOL(zero, ",")
-	OPT_WRITE_BOOL(utrace, ",")
-	OPT_WRITE_BOOL(xmalloc, ",")
-	OPT_WRITE_BOOL(tcache, ",")
-	OPT_WRITE_SSIZE_T(lg_tcache_max, ",")
-	OPT_WRITE_BOOL(prof, ",")
-	OPT_WRITE_CHAR_P(prof_prefix, ",")
-	OPT_WRITE_BOOL_MUTABLE(prof_active, prof.active, ",")
-	OPT_WRITE_BOOL_MUTABLE(prof_thread_active_init, prof.thread_active_init,
-	    ",")
-	OPT_WRITE_SSIZE_T_MUTABLE(lg_prof_sample, prof.lg_sample, ",")
-	OPT_WRITE_BOOL(prof_accum, ",")
-	OPT_WRITE_SSIZE_T(lg_prof_interval, ",")
-	OPT_WRITE_BOOL(prof_gdump, ",")
-	OPT_WRITE_BOOL(prof_final, ",")
-	OPT_WRITE_BOOL(prof_leak, ",")
-	OPT_WRITE_BOOL(stats_print, ",")
-	if (json || opt_stats_print) {
-		/*
-		 * stats_print_opts is always emitted for JSON, so as long as it
-		 * comes last it's safe to unconditionally omit the comma here
-		 * (rather than having to conditionally omit it elsewhere
-		 * depending on configuration).
-		 */
-		OPT_WRITE_CHAR_P(stats_print_opts, "")
-	}
-	if (json) {
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t},\n");
+#define OPT_WRITE_MUTABLE(name, var1, var2, size, emitter_type,		\
+    altname)								\
+	if (je_mallctl("opt."#name, (void *)&var1, &size, NULL, 0) ==	\
+	    0 && je_mallctl(#altname, (void *)&var2, &size, NULL, 0)	\
+	    == 0) {							\
+		emitter_vdict_kv_note(emitter, #name, emitter_type,	\
+		    &var1, #altname, emitter_type, (void *)&var2);	\
 	}
 
+#define OPT_WRITE_BOOL(name) OPT_WRITE(name, bv, bsz, emitter_type_bool)
+#define OPT_WRITE_BOOL_MUTABLE(name, altname)				\
+	OPT_WRITE_MUTABLE(name, bv, bv2, bsz, emitter_type_bool, altname)
+
+#define OPT_WRITE_UNSIGNED(name)					\
+	OPT_WRITE(name, uv, usz, emitter_type_unsigned)
+
+#define OPT_WRITE_SSIZE_T(name)						\
+	OPT_WRITE(name, ssv, sssz, emitter_type_ssize)
+#define OPT_WRITE_SSIZE_T_MUTABLE(name, altname)			\
+	OPT_WRITE_MUTABLE(name, ssv, ssv2, sssz, emitter_type_ssize,	\
+	    altname)
+
+#define OPT_WRITE_CHAR_P(name)						\
+	OPT_WRITE(name, cpv, cpsz, emitter_type_string)
+
+	emitter_vdict_begin(emitter, "opt", "Run-time option settings");
+
+	OPT_WRITE_BOOL(abort)
+	OPT_WRITE_BOOL(abort_conf)
+	OPT_WRITE_BOOL(retain)
+	OPT_WRITE_CHAR_P(dss)
+	OPT_WRITE_UNSIGNED(narenas)
+	OPT_WRITE_CHAR_P(percpu_arena)
+	OPT_WRITE_CHAR_P(metadata_thp)
+	OPT_WRITE_BOOL_MUTABLE(background_thread, background_thread)
+	OPT_WRITE_SSIZE_T_MUTABLE(dirty_decay_ms, arenas.dirty_decay_ms)
+	OPT_WRITE_SSIZE_T_MUTABLE(muzzy_decay_ms, arenas.muzzy_decay_ms)
+	OPT_WRITE_UNSIGNED(lg_extent_max_active_fit)
+	OPT_WRITE_CHAR_P(junk)
+	OPT_WRITE_BOOL(zero)
+	OPT_WRITE_BOOL(utrace)
+	OPT_WRITE_BOOL(xmalloc)
+	OPT_WRITE_BOOL(tcache)
+	OPT_WRITE_SSIZE_T(lg_tcache_max)
+	OPT_WRITE_BOOL(prof)
+	OPT_WRITE_CHAR_P(prof_prefix)
+	OPT_WRITE_BOOL_MUTABLE(prof_active, prof.active)
+	OPT_WRITE_BOOL_MUTABLE(prof_thread_active_init, prof.thread_active_init)
+	OPT_WRITE_SSIZE_T_MUTABLE(lg_prof_sample, prof.lg_sample)
+	OPT_WRITE_BOOL(prof_accum)
+	OPT_WRITE_SSIZE_T(lg_prof_interval)
+	OPT_WRITE_BOOL(prof_gdump)
+	OPT_WRITE_BOOL(prof_final)
+	OPT_WRITE_BOOL(prof_leak)
+	OPT_WRITE_BOOL(stats_print)
+	OPT_WRITE_CHAR_P(stats_print_opts)
+
+	emitter_vdict_end(emitter);
+
+#undef OPT_WRITE
+#undef OPT_WRITE_MUTABLE
 #undef OPT_WRITE_BOOL
 #undef OPT_WRITE_BOOL_MUTABLE
 #undef OPT_WRITE_UNSIGNED
 #undef OPT_WRITE_SSIZE_T
 #undef OPT_WRITE_SSIZE_T_MUTABLE
 #undef OPT_WRITE_CHAR_P
+
+	if (json) {
+		malloc_cprintf(write_cb, cbopaque,
+		    ",\n");
+	}
 
 	/* arenas. */
 	if (json) {
