@@ -113,10 +113,11 @@ emitter_json_clear_first_key(emitter_t *emitter) {
 }
 
 /*
- * Internal.  Terminate the current json dict.
+ * Internal.  Terminate the current json dict (if braces is true) or array (if
+ * braces is false).
  */
 static inline void
-emitter_json_dict_finish(emitter_t *emitter) {
+emitter_json_nest_finish(emitter_t *emitter, bool braces) {
 	emitter_json_assert_state(emitter);
 	assert(emitter->nesting_depth > 0);
 	emitter_json_clear_first_key(emitter);
@@ -125,8 +126,25 @@ emitter_json_dict_finish(emitter_t *emitter) {
 	for (int i = 0; i < emitter->nesting_depth; i++) {
 		emitter_printf(emitter, "\t");
 	}
-	emitter_printf(emitter, "}");
+	if (braces) {
+		emitter_printf(emitter, "}");
+	} else {
+		emitter_printf(emitter, "]");
+	}
 }
+
+/* Internal.  Finish the current dict. */
+static inline void
+emitter_json_dict_finish(emitter_t *emitter) {
+	emitter_json_nest_finish(emitter, true);
+}
+
+/* Internal.  Finish the current arr. */
+static inline void
+emitter_json_arr_finish(emitter_t *emitter) {
+	emitter_json_nest_finish(emitter, false);
+}
+
 
 /*
  * Internal.  Insert any necessary commas, newlines, and tabs needed for the
@@ -361,6 +379,62 @@ emitter_table_note(emitter_t *emitter, const char *format, ...) {
 		emitter_printf(emitter, "\n");
 	}
 	va_end(ap);
+}
+
+/* Begin a json-only array.  It looks like:
+ *   "key": [
+ *     {
+ *       "v1": 1
+ *     },
+ *     {
+ *       "v2": 2
+ *     }
+ *   ]
+ *
+ * For now, we only support dicts as array elements.
+ */
+static inline void
+emitter_json_arr_begin(emitter_t *emitter, const char *key) {
+	if (emitter->output != emitter_output_json) {
+		return;
+	}
+	emitter_json_assert_state(emitter);
+	assert(emitter->nesting_depth > 0);
+
+	emitter_json_key_prefix(emitter);
+	emitter_printf(emitter, "\"%s\": [", key);
+	++emitter->nesting_depth;
+}
+
+static inline void
+emitter_json_arr_end(emitter_t *emitter) {
+	if (emitter->output != emitter_output_json) {
+		return;
+	}
+	emitter_json_assert_state(emitter);
+	emitter_json_arr_finish(emitter);
+}
+
+static inline void
+emitter_json_arr_dict_begin(emitter_t *emitter) {
+	if (emitter->output != emitter_output_json) {
+		return;
+	}
+	emitter_json_assert_state(emitter);
+	assert(emitter->nesting_depth > 0);
+
+	emitter_json_key_prefix(emitter);
+	emitter_printf(emitter, "{");
+	++emitter->nesting_depth;
+}
+
+static inline void
+emitter_json_arr_dict_end(emitter_t *emitter) {
+	if (emitter->output != emitter_output_json) {
+		return;
+	}
+	emitter_json_assert_state(emitter);
+	emitter_json_dict_finish(emitter);
 }
 
 #endif /* JEMALLOC_INTERNAL_EMITTER_H */

@@ -294,6 +294,48 @@ TEST_BEGIN(test_types) {
 }
 TEST_END
 
+static void
+emit_json_arr(emitter_t *emitter) {
+	int ival = 123;
+
+	emitter_begin(emitter);
+	emitter_json_dict_begin(emitter, "dict");
+	emitter_json_arr_begin(emitter, "arr");
+	emitter_json_arr_dict_begin(emitter);
+	emitter_json_simple_kv(emitter, "foo", emitter_type_int, &ival);
+	emitter_json_arr_dict_end(emitter); /* Close arr[0] */
+	emitter_json_arr_dict_begin(emitter);
+	emitter_json_simple_kv(emitter, "bar", emitter_type_int, &ival);
+	emitter_json_simple_kv(emitter, "baz", emitter_type_int, &ival);
+	emitter_json_arr_dict_end(emitter); /* Close arr[1]. */
+	emitter_json_arr_end(emitter); /* Close arr. */
+	emitter_json_dict_end(emitter); /* Close dict. */
+	emitter_end(emitter);
+}
+
+static const char *json_arr_json =
+"{\n"
+"\t\"dict\": {\n"
+"\t\t\"arr\": [\n"
+"\t\t\t{\n"
+"\t\t\t\t\"foo\": 123\n"
+"\t\t\t},\n"
+"\t\t\t{\n"
+"\t\t\t\t\"bar\": 123,\n"
+"\t\t\t\t\"baz\": 123\n"
+"\t\t\t}\n"
+"\t\t]\n"
+"\t}\n"
+"}\n";
+
+static const char *json_arr_table = "";
+
+TEST_BEGIN(test_json_arr) {
+	assert_emit_output(&emit_json_arr, json_arr_json, json_arr_table);
+}
+TEST_END
+
+
 int
 main(void) {
 	return test_no_reentrancy(
@@ -302,5 +344,6 @@ main(void) {
 	    test_emit_json_dict,
 	    test_simple_kv,
 	    test_json_simple_kv,
-	    test_types);
+	    test_types,
+	    test_json_arr);
 }
