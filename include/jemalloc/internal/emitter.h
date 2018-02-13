@@ -11,6 +11,8 @@ typedef enum emitter_type_e emitter_type_t;
 enum emitter_type_e {
 	emitter_type_bool,
 	emitter_type_int,
+	emitter_type_unsigned,
+	emitter_type_ssize,
 	emitter_type_string
 };
 
@@ -154,6 +156,8 @@ emitter_print_value(emitter_t *emitter, emitter_type_t value_type,
 	const bool *boolp;
 	const char *const *charpp;
 	const int *intp;
+	const unsigned *unsignedp;
+	const ssize_t *ssizep;
 
 	switch (value_type) {
 	case emitter_type_bool:
@@ -163,6 +167,14 @@ emitter_print_value(emitter_t *emitter, emitter_type_t value_type,
 	case emitter_type_int:
 		intp = (const int *)value;
 		emitter_printf(emitter, "%d", *intp);
+		break;
+	case emitter_type_unsigned:
+		unsignedp = (const unsigned *)value;
+		emitter_printf(emitter, "%u", *unsignedp);
+		break;
+	case emitter_type_ssize:
+		ssizep = (const ssize_t *)value;
+		emitter_printf(emitter, "%zd", *ssizep);
 		break;
 	case emitter_type_string:
 		charpp = (const char *const *)value;
