@@ -1,5 +1,4 @@
 #include "test/jemalloc_test.h"
-
 #include "jemalloc/internal/emitter.h"
 
 /*
@@ -260,6 +259,7 @@ emit_types(emitter_t *emitter) {
 	ssize_t zd = -456;
 	size_t zu = 456;
 	const char *str = "string";
+	uint32_t u32 = 789;
 
 	emitter_begin(emitter);
 	emitter_simple_kv(emitter, "k1", "K1", emitter_type_bool, &b);
@@ -268,6 +268,7 @@ emit_types(emitter_t *emitter) {
 	emitter_simple_kv(emitter, "k4", "K4", emitter_type_ssize, &zd);
 	emitter_simple_kv(emitter, "k5", "K5", emitter_type_size, &zu);
 	emitter_simple_kv(emitter, "k6", "K6", emitter_type_string, &str);
+	emitter_simple_kv(emitter, "k7", "K7", emitter_type_uint32, &u32);
 	emitter_end(emitter);
 }
 
@@ -278,7 +279,8 @@ static const char *types_json =
 "\t\"k3\": 123,\n"
 "\t\"k4\": -456,\n"
 "\t\"k5\": 456,\n"
-"\t\"k6\": \"string\"\n"
+"\t\"k6\": \"string\",\n"
+"\t\"k7\": 789\n"
 "}\n";
 
 static const char *types_table =
@@ -287,7 +289,8 @@ static const char *types_table =
 "K3: 123\n"
 "K4: -456\n"
 "K5: 456\n"
-"K6: \"string\"\n";
+"K6: \"string\"\n"
+"K7: 789\n";
 
 TEST_BEGIN(test_types) {
 	assert_emit_output(&emit_types, types_json, types_table);
