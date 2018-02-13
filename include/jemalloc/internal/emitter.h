@@ -238,9 +238,16 @@ emitter_vdict_end(emitter_t *emitter) {
 	}
 }
 
+/*
+ * Emits the given key and value pair.  If note_key is non-null, then in table
+ * note, we emit a trailing table note in the row, so that it looks like:
+ *   key: value (note_key: note_value)
+ * (The note key is arbitrary; it's not namespaced, as the key is).
+ */
 static inline void
-emitter_vdict_kv(emitter_t *emitter, const char *key,
-    emitter_type_t value_type, const void* value) {
+emitter_vdict_kv_note(emitter_t *emitter, const char *key,
+    emitter_type_t value_type, const void *value, const char *note_key,
+    emitter_type_t note_value_type, const void *note_value) {
 	assert(emitter->in_vdict);
 	if (emitter->output == emitter_output_json) {
 		emitter_json_key_prefix(emitter);
@@ -250,8 +257,22 @@ emitter_vdict_kv(emitter_t *emitter, const char *key,
 		emitter_printf(emitter, "  %s.%s: ", emitter->vdict_name,
 		    key);
 		emitter_print_value(emitter, value_type, value);
+		if (note_key != NULL) {
+			emitter_printf(emitter, " (%s: ", note_key);
+			emitter_print_value(emitter, note_value_type,
+			    note_value);
+			emitter_printf(emitter, ")");
+		}
 		emitter_printf(emitter, "\n");
 	}
+}
+
+/* Same as the _note variant, but with a NULL note. */
+static inline void
+emitter_vdict_kv(emitter_t *emitter, const char *key,
+    emitter_type_t value_type, const void *value) {
+	emitter_vdict_kv_note(emitter, key, value_type, value, NULL,
+	    emitter_type_bool, NULL);
 }
 
 /* Begin a dict that appears only in the json output. */

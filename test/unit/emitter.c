@@ -65,8 +65,10 @@ emit_vdict(emitter_t *emitter) {
 	emitter_vdict_begin(emitter, "foo", "This is the foo table:");
 	emitter_vdict_kv(emitter, "abc", emitter_type_bool, &b_false);
 	emitter_vdict_kv(emitter, "def", emitter_type_bool, &b_true);
-	emitter_vdict_kv(emitter, "ghi", emitter_type_int, &i_123);
-	emitter_vdict_kv(emitter, "jkl", emitter_type_string, &str);
+	emitter_vdict_kv_note(emitter, "ghi", emitter_type_int, &i_123,
+	    "note_key1", emitter_type_string, &str);
+	emitter_vdict_kv_note(emitter, "jkl", emitter_type_string, &str,
+	    "note_key2", emitter_type_bool, &b_false);
 	emitter_vdict_end(emitter);
 	emitter_end(emitter);
 }
@@ -83,8 +85,8 @@ static const char *vdict_table =
 "This is the foo table:\n"
 "  foo.abc: false\n"
 "  foo.def: true\n"
-"  foo.ghi: 123\n"
-"  foo.jkl: \"a string\"\n";
+"  foo.ghi: 123 (note_key1: \"a string\")\n"
+"  foo.jkl: \"a string\" (note_key2: false)\n";
 
 TEST_BEGIN(test_vdict) {
 	assert_emit_output(&emit_vdict, vdict_json, vdict_table);
