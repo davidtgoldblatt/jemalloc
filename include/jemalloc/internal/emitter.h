@@ -13,6 +13,7 @@ enum emitter_type_e {
 	emitter_type_int,
 	emitter_type_unsigned,
 	emitter_type_uint32,
+	emitter_type_uint64,
 	emitter_type_size,
 	emitter_type_ssize,
 	emitter_type_string
@@ -180,6 +181,7 @@ emitter_print_value(emitter_t *emitter, emitter_type_t value_type,
 	const ssize_t *ssizep;
 	const size_t *sizep;
 	const uint32_t *uint32p;
+	const uint64_t *uint64p;
 
 	switch (value_type) {
 	case emitter_type_bool:
@@ -209,6 +211,10 @@ emitter_print_value(emitter_t *emitter, emitter_type_t value_type,
 	case emitter_type_uint32:
 		uint32p = (const uint32_t *)value;
 		emitter_printf(emitter, "%"FMTu32, *uint32p);
+		break;
+	case emitter_type_uint64:
+		uint64p = (const uint64_t *)value;
+		emitter_printf(emitter, "%"FMTu64, *uint64p);
 		break;
 	default:
 		unreachable();
