@@ -915,13 +915,19 @@ MUTEX_PROF_COUNTERS
 }
 
 static void
-stats_print_helper(void (*write_cb)(void *, const char *), void *cbopaque,
-    bool json, bool merged, bool destroyed, bool unmerged, bool bins,
-    bool large, bool mutex) {
+stats_print_helper(emitter_t *emitter, bool json, bool merged, bool destroyed,
+    bool unmerged, bool bins, bool large, bool mutex) {
 	size_t allocated, active, metadata, metadata_thp, resident, mapped,
 	    retained;
 	size_t num_background_threads;
 	uint64_t background_thread_num_runs, background_thread_run_interval;
+
+	/*
+	 * These should be deleted.  We keep them around for a while, to aid in
+	 * the transition to the emitter code.
+	 */
+	void (*write_cb)(void *, const char *) = emitter->write_cb;
+	void *cbopaque = emitter->cbopaque;
 
 	CTL_GET("stats.allocated", &allocated, size_t);
 	CTL_GET("stats.active", &active, size_t);
@@ -949,39 +955,44 @@ stats_print_helper(void (*write_cb)(void *, const char *), void *cbopaque,
 		background_thread_run_interval = 0;
 	}
 
+	emitter_hdict_begin(emitter, "stats");
+	emitter_hdict_kv(emitter, "allocated", "Allocated",
+	    emitter_type_size, &allocated);
+	emitter_hdict_kv(emitter, "active", "active",
+	    emitter_type_size, &active);
+	emitter_hdict_kv(emitter, "metadata", "metadata",
+	    emitter_type_size, &metadata);
+	emitter_hdict_kv(emitter, "metadata_thp", "metadata_thp",
+	    emitter_type_size, &metadata_thp);
+	emitter_hdict_kv(emitter, "resident", "resident",
+	    emitter_type_size, &resident);
+	emitter_hdict_kv(emitter, "mapped", "mapped",
+	    emitter_type_size, &mapped);
+	emitter_hdict_kv(emitter, "retained", "retained",
+	    emitter_type_size, &retained);
+	/*
+	 * General mutex stats live in the stats table in json mode, but are
+	 * their own thing in table mode.
+	 */
+	emitter_table_hdict_end(emitter);
+	/*
+	 * Background thread stats go on a new line in table mode, and in a
+	 * sub-dict in json mode.
+	 */
+	emitter_table_hdict_begin(emitter);
+	emitter_json_dict_begin(emitter, "background_thread");
+	emitter_hdict_kv(emitter, "num_threads", "Background threads",
+	    emitter_type_size, &num_background_threads);
+	emitter_hdict_kv(emitter, "num_runs", "num_runs",
+	    emitter_type_uint64, &background_thread_num_runs);
+	emitter_hdict_kv(emitter, "run_interval", "run_interval",
+	    emitter_type_uint64, &background_thread_run_interval);
+	emitter_json_dict_end(emitter); /* Close "background_thread". */
+	emitter_table_hdict_end(emitter);
+
 	if (json) {
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\"stats\": {\n");
-
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\"allocated\": %zu,\n", allocated);
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\"active\": %zu,\n", active);
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\"metadata\": %zu,\n", metadata);
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\"metadata_thp\": %zu,\n", metadata_thp);
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\"resident\": %zu,\n", resident);
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\"mapped\": %zu,\n", mapped);
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\"retained\": %zu,\n", retained);
-
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\"background_thread\": {\n");
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\t\"num_threads\": %zu,\n", num_background_threads);
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\t\"num_runs\": %"FMTu64",\n",
-		    background_thread_num_runs);
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\t\"run_interval\": %"FMTu64"\n",
-		    background_thread_run_interval);
-		malloc_cprintf(write_cb, cbopaque, "\t\t\t}%s\n",
-		    mutex ? "," : "");
-
 		if (mutex) {
+			malloc_cprintf(write_cb, cbopaque, ",\n");
 			malloc_cprintf(write_cb, cbopaque,
 			    "\t\t\t\"mutexes\": {\n");
 			mutex_prof_global_ind_t i;
@@ -993,23 +1004,7 @@ stats_print_helper(void (*write_cb)(void *, const char *), void *cbopaque,
 			}
 			malloc_cprintf(write_cb, cbopaque, "\t\t\t}\n");
 		}
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t}%s\n", (merged || unmerged || destroyed) ? "," : "");
 	} else {
-		malloc_cprintf(write_cb, cbopaque,
-		    "Allocated: %zu, active: %zu, metadata: %zu (n_thp %zu),"
-		    " resident: %zu, mapped: %zu, retained: %zu\n",
-		    allocated, active, metadata, metadata_thp, resident, mapped,
-		    retained);
-
-		if (have_background_thread && num_background_threads > 0) {
-			malloc_cprintf(write_cb, cbopaque,
-			    "Background threads: %zu, num_runs: %"FMTu64", "
-			    "run_interval: %"FMTu64" ns\n",
-			    num_background_threads,
-			    background_thread_num_runs,
-			    background_thread_run_interval);
-		}
 		if (mutex) {
 			mutex_prof_global_ind_t i;
 			for (i = 0; i < mutex_prof_num_global_mutexes; i++) {
@@ -1017,6 +1012,16 @@ stats_print_helper(void (*write_cb)(void *, const char *), void *cbopaque,
 				    global_mutex_names[i], mutex_stats[i],
 				    i == 0);
 			}
+		}
+	}
+
+	emitter_json_hdict_end(emitter); /* Close "stats". */
+
+	if (json) {
+		if (merged || unmerged || destroyed) {
+			malloc_cprintf(write_cb, cbopaque, ",\n");
+		} else {
+			malloc_cprintf(write_cb, cbopaque, "\n");
 		}
 	}
 
@@ -1184,17 +1189,10 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 
 	if (general) {
 		stats_general_print(&emitter, config_stats);
-		if (json) {
-			if (config_stats) {
-				malloc_cprintf(write_cb, cbopaque, ",\n");
-			} else {
-				malloc_cprintf(write_cb, cbopaque, "\n");
-			}
-		}
 	}
 	if (config_stats) {
-		stats_print_helper(write_cb, cbopaque, json, merged, destroyed,
-		    unmerged, bins, large, mutex);
+		stats_print_helper(&emitter, json, merged, destroyed, unmerged,
+		    bins, large, mutex);
 	}
 
 	emitter_json_dict_end(&emitter); /* Closes the "jemalloc" dict. */
