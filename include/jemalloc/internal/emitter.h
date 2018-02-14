@@ -22,14 +22,17 @@ enum emitter_type_e {
 typedef struct emitter_s emitter_t;
 struct emitter_s {
 	emitter_output_t output;
-	/* Just for debugging.  Vdicts aren't allowed to nest. */
+	/* Just for debugging.  Vdicts and hdicts aren't allowed to nest. */
 	bool in_vdict;
+	bool in_hdict;
+	/* The output information. */
 	void (*write_cb)(void *, const char *);
 	void *cbopaque;
 	union {
 		/* State for tabular output. */
 		struct {
 			const char *vdict_name;
+			bool hdict_first_key;
 		};
 		/* State for json output. */
 		struct {
@@ -51,6 +54,7 @@ emitter_init(emitter_t *emitter, emitter_output_t emitter_output,
     void (*write_cb)(void *, const char *), void *cbopaque) {
 	emitter->output = emitter_output;
 	emitter->in_vdict = false;
+	emitter->in_hdict = false;
 	emitter->write_cb = write_cb;
 	emitter->cbopaque = cbopaque;
 	if (emitter_output == emitter_output_json) {
@@ -263,7 +267,7 @@ emitter_end(emitter_t *emitter) {
 static inline void
 emitter_vdict_begin(emitter_t *emitter, const char *vdict_name,
     const char *table_header) {
-	assert(!emitter->in_vdict);
+	assert(!emitter->in_vdict && !emitter->in_hdict);
 	emitter->in_vdict = true;
 
 	if (emitter->output == emitter_output_json) {
@@ -321,6 +325,80 @@ emitter_vdict_kv(emitter_t *emitter, const char *key,
     emitter_type_t value_type, const void *value) {
 	emitter_vdict_kv_note(emitter, key, value_type, value, NULL,
 	    emitter_type_bool, NULL);
+}
+
+/*
+ * An hdict is emitted the same as a vdict in json mode, but as a
+ * comma-separated list in table mode (with no table name).
+ */
+static inline void
+emitter_hdict_begin(emitter_t *emitter, const char *json_dict_name) {
+	assert(!emitter->in_hdict && !emitter->in_vdict);
+	emitter->in_hdict = true;
+	if (emitter->output == emitter_output_json) {
+		emitter_json_key_prefix(emitter);
+		emitter_printf(emitter, "\"%s\": {", json_dict_name);
+		++emitter->nesting_depth;
+	} else {
+		emitter->hdict_first_key = true;
+	}
+}
+
+static inline void
+emitter_table_hdict_begin(emitter_t *emitter) {
+	if (emitter->output != emitter_output_table) {
+		return;
+	}
+	emitter_hdict_begin(emitter, "");
+}
+
+static inline void
+emitter_hdict_kv(emitter_t *emitter, const char *json_key,
+    const char *table_key,emitter_type_t value_type, void *value) {
+	assert(emitter->in_hdict);
+	if (emitter->output == emitter_output_json) {
+		emitter_json_key_prefix(emitter);
+		emitter_printf(emitter, "\"%s\": ", json_key);
+		emitter_print_value(emitter, value_type, value);
+	} else {
+		if (emitter->hdict_first_key) {
+			emitter->hdict_first_key = false;
+		} else {
+			emitter_printf(emitter, ", ");
+		}
+		emitter_printf(emitter, "%s: ", table_key);
+		emitter_print_value(emitter, value_type, value);
+	}
+}
+
+static inline void
+emitter_hdict_end(emitter_t *emitter) {
+	assert(emitter->in_hdict);
+	emitter->in_hdict = false;
+
+	if (emitter->output == emitter_output_json) {
+		emitter_json_dict_finish(emitter);
+	} else {
+		emitter_printf(emitter, "\n");
+	}
+}
+
+/* End the current hdict, but only in json output mode. */
+static inline void
+emitter_json_hdict_end(emitter_t *emitter) {
+	if (emitter->output != emitter_output_json) {
+		return;
+	}
+	emitter_hdict_end(emitter);
+}
+
+/* End the current hdict, but only in table output mode. */
+static inline void
+emitter_table_hdict_end(emitter_t *emitter) {
+	if (emitter->output != emitter_output_table) {
+		return;
+	}
+	emitter_hdict_end(emitter);
 }
 
 /* Begin a dict that appears only in the json output. */

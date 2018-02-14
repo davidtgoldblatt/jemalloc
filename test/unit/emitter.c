@@ -342,6 +342,68 @@ TEST_BEGIN(test_json_arr) {
 }
 TEST_END
 
+static void
+emit_hdict(emitter_t *emitter) {
+	int val = 123;
+
+	emitter_begin(emitter);
+	emitter_hdict_begin(emitter, "foo");
+	emitter_hdict_kv(emitter, "abc", "Abc", emitter_type_int, &val);
+	emitter_hdict_kv(emitter, "def", "def", emitter_type_int, &val);
+	emitter_hdict_kv(emitter, "ghi", "GHI", emitter_type_int, &val);
+	emitter_hdict_end(emitter);
+	emitter_end(emitter);
+}
+static const char *hdict_json =
+"{\n"
+"\t\"foo\": {\n"
+"\t\t\"abc\": 123,\n"
+"\t\t\"def\": 123,\n"
+"\t\t\"ghi\": 123\n"
+"\t}\n"
+"}\n";
+static const char *hdict_table =
+"Abc: 123, def: 123, GHI: 123\n";
+
+TEST_BEGIN(test_hdict) {
+	assert_emit_output(&emit_hdict, hdict_json, hdict_table);
+}
+TEST_END
+
+static void
+emit_hdict_split_end(emitter_t *emitter) {
+	int val = 123;
+
+	emitter_begin(emitter);
+	emitter_hdict_begin(emitter, "foo");
+	emitter_hdict_kv(emitter, "abc", "Abc", emitter_type_int, &val);
+	emitter_hdict_kv(emitter, "def", "def", emitter_type_int, &val);
+	emitter_table_hdict_end(emitter);
+	emitter_table_hdict_begin(emitter);
+	emitter_hdict_kv(emitter, "ghi", "Ghi", emitter_type_int, &val);
+	emitter_table_hdict_end(emitter);
+	emitter_json_simple_kv(emitter, "jkl", emitter_type_int, &val);
+	emitter_json_hdict_end(emitter);
+	emitter_end(emitter);
+}
+static const char *hdict_split_end_json =
+"{\n"
+"\t\"foo\": {\n"
+"\t\t\"abc\": 123,\n"
+"\t\t\"def\": 123,\n"
+"\t\t\"ghi\": 123,\n"
+"\t\t\"jkl\": 123\n"
+"\t}\n"
+"}\n";
+static const char *hdict_split_end_table =
+"Abc: 123, def: 123\n"
+"Ghi: 123\n";
+
+TEST_BEGIN(test_hdict_split_end) {
+	assert_emit_output(&emit_hdict_split_end, hdict_split_end_json,
+	    hdict_split_end_table);
+}
+TEST_END
 
 int
 main(void) {
@@ -352,5 +414,7 @@ main(void) {
 	    test_simple_kv,
 	    test_json_simple_kv,
 	    test_types,
-	    test_json_arr);
+	    test_json_arr,
+	    test_hdict,
+	    test_hdict_split_end);
 }
