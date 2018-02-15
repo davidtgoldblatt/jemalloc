@@ -5,12 +5,16 @@
  * This is so useful for debugging and feature work, we'll leave printing
  * functionality committed but disabled by default.
  */
-static bool actually_print = false;
+/* Print the text as it will appear. */
+static bool print_raw = false;
+/* Print the text escaped, so it can be copied back into the test case. */
+static bool print_escaped = false;
 
 typedef struct buf_descriptor_s buf_descriptor_t;
 struct buf_descriptor_s {
 	char *buf;
 	size_t len;
+	bool mid_quote;
 };
 
 /*
@@ -19,10 +23,39 @@ struct buf_descriptor_s {
  */
 static void
 forwarding_cb(void *buf_descriptor_v, const char *str) {
-	if (actually_print) {
+	buf_descriptor_t *buf_descriptor = (buf_descriptor_t *)buf_descriptor_v;
+
+	if (print_raw) {
 		malloc_printf("%s", str);
 	}
-	buf_descriptor_t *buf_descriptor = (buf_descriptor_t *)buf_descriptor_v;
+	if (print_escaped) {
+		const char *it = str;
+		while (*it != '\0') {
+			if (!buf_descriptor->mid_quote) {
+				malloc_printf("\"");
+				buf_descriptor->mid_quote = true;
+			}
+			switch (*it) {
+			case '\\':
+				malloc_printf("\\");
+				break;
+			case '\"':
+				malloc_printf("\\\"");
+				break;
+			case '\t':
+				malloc_printf("\\t");
+				break;
+			case '\n':
+				malloc_printf("\\n\"\n");
+				buf_descriptor->mid_quote = false;
+				break;
+			default:
+				malloc_printf("%c", *it);
+			}
+			it++;
+		}
+	}
+
 	size_t written = malloc_snprintf(buf_descriptor->buf,
 	    buf_descriptor->len, "%s", str);
 	assert_zu_eq(written, strlen(str), "Buffer overflow!");
@@ -40,6 +73,8 @@ assert_emit_output(void (*emit_fn)(emitter_t *),
 
 	buf_descriptor.buf = buf;
 	buf_descriptor.len = MALLOC_PRINTF_BUFSIZE;
+	buf_descriptor.mid_quote = false;
+
 	emitter_init(&emitter, emitter_output_json, &forwarding_cb,
 	    &buf_descriptor);
 	(*emit_fn)(&emitter);
@@ -47,6 +82,8 @@ assert_emit_output(void (*emit_fn)(emitter_t *),
 
 	buf_descriptor.buf = buf;
 	buf_descriptor.len = MALLOC_PRINTF_BUFSIZE;
+	buf_descriptor.mid_quote = false;
+
 	emitter_init(&emitter, emitter_output_table, &forwarding_cb,
 	    &buf_descriptor);
 	(*emit_fn)(&emitter);
@@ -405,6 +442,182 @@ TEST_BEGIN(test_hdict_split_end) {
 }
 TEST_END
 
+static void
+emit_tabarr(emitter_t *emitter) {
+	emitter_shape_t root;
+	emitter_shape_init_root(&root, "root", "Root", emitter_justify_right,
+	    10);
+	    emitter_shape_t dict1;
+	    emitter_shape_init_dict(&dict1, &root, "dict1", "",
+		emitter_justify_left, 0);
+
+	        emitter_shape_t nest1;
+		emitter_shape_init_dict(&nest1, &dict1, "nest1", "",
+		    emitter_justify_left, 0);
+
+		    emitter_shape_t ival;
+		    emitter_shape_init_primitive(&ival, &nest1, "int_key",
+			"Int header", emitter_justify_right, 15, emitter_type_int);
+
+		    emitter_shape_t strval;
+		    emitter_shape_init_primitive(&strval, &nest1, "str_key",
+			"Str header", emitter_justify_right, 25,
+			emitter_type_string);
+
+		emitter_shape_t nest2;
+		emitter_shape_init_dict(&nest2, &dict1, "nest2", "",
+		    emitter_justify_right, 20);
+		    /*
+		     * There's a right-justified field next to a left-justified
+		     * one.  Let's add some padding.
+		     */
+		    emitter_shape_t padding;
+		    emitter_shape_init_padding(&padding, &nest2, 1);
+
+		    emitter_shape_t sizeval;
+		    emitter_shape_init_primitive(&sizeval, &nest2,
+			"size_header", "Size header", emitter_justify_left, 10,
+			emitter_type_size);
+
+	emitter_begin(emitter);
+	emitter_tabarr_begin(emitter, &root);
+
+	ival.int_value = 123;
+	strval.string_value = "strval 1";
+	sizeval.size_value = 456;
+	emitter_tabarr_obj(emitter, &root);
+
+	ival.int_value = 789;
+	strval.string_value = "different strval";
+	sizeval.size_value = 101112;
+	emitter_tabarr_obj(emitter, &root);
+
+	nest2.table_key = "labelled dict";
+	ival.int_value = 131415;
+	strval.string_value = "a third strval";
+	sizeval.size_value = 161718;
+	emitter_tabarr_obj(emitter, &root);
+
+
+	emitter_tabarr_end(emitter);
+
+	emitter_end(emitter);
+}
+
+static const char *tabarr_json =
+"{\n"
+"\t\"root\": [\n"
+"\t\t{\n"
+"\t\t\t\"dict1\": {\n"
+"\t\t\t\t\"nest1\": {\n"
+"\t\t\t\t\t\"int_key\": 123,\n"
+"\t\t\t\t\t\"str_key\": \"strval 1\"\n"
+"\t\t\t\t},\n"
+"\t\t\t\t\"nest2\": {\n"
+"\t\t\t\t\t\"size_header\": 456\n"
+"\t\t\t\t}\n"
+"\t\t\t}\n"
+"\t\t},\n"
+"\t\t{\n"
+"\t\t\t\"dict1\": {\n"
+"\t\t\t\t\"nest1\": {\n"
+"\t\t\t\t\t\"int_key\": 789,\n"
+"\t\t\t\t\t\"str_key\": \"different strval\"\n"
+"\t\t\t\t},\n"
+"\t\t\t\t\"nest2\": {\n"
+"\t\t\t\t\t\"size_header\": 101112\n"
+"\t\t\t\t}\n"
+"\t\t\t}\n"
+"\t\t},\n"
+"\t\t{\n"
+"\t\t\t\"dict1\": {\n"
+"\t\t\t\t\"nest1\": {\n"
+"\t\t\t\t\t\"int_key\": 131415,\n"
+"\t\t\t\t\t\"str_key\": \"a third strval\"\n"
+"\t\t\t\t},\n"
+"\t\t\t\t\"nest2\": {\n"
+"\t\t\t\t\t\"size_header\": 161718\n"
+"\t\t\t\t}\n"
+"\t\t\t}\n"
+"\t\t}\n"
+"\t]\n"
+"}\n";
+
+static const char *tabarr_table =
+"      Root     Int header               Str header                     Size header\n"
+"                      123               \"strval 1\"                     456       \n"
+"                      789       \"different strval\"                     101112    \n"
+"                   131415         \"a third strval\"      labelled dict: 161718    \n"
+"\n";
+
+TEST_BEGIN(test_tabarr) {
+	assert_emit_output(&emit_tabarr, tabarr_json, tabarr_table);
+}
+TEST_END
+
+static void
+emit_tabdict(emitter_t *emitter) {
+	emitter_shape_t root;
+	emitter_shape_init_root(&root, "root", "Root", emitter_justify_left,
+	    8);
+
+	emitter_shape_t dict;
+	emitter_shape_init_dict(&dict, &root, "", "",
+	    emitter_justify_left, 10);
+
+	    emitter_shape_t ival;
+	    emitter_shape_init_primitive(&ival, &dict, "valkey", "Value Key",
+		emitter_justify_right, 10, emitter_type_int);
+
+	emitter_begin(emitter);
+	emitter_tabdict_begin(emitter, &root);
+
+	dict.json_key = "dict1";
+	dict.table_key = "Dict 1";
+	ival.int_value = 123;
+	emitter_tabdict_kv(emitter, &root);
+
+	dict.json_key = "dict2";
+	dict.table_key = "Dict 2";
+	ival.int_value = 456;
+	emitter_tabdict_kv(emitter, &root);
+
+	dict.json_key = "dict3";
+	dict.table_key = "Dict 3";
+	ival.int_value = 789;
+	emitter_tabdict_kv(emitter, &root);
+
+	emitter_tabdict_end(emitter);
+	emitter_end(emitter);
+}
+
+static const char *tabdict_json =
+"{\n"
+"\t\"root\": {\n"
+"\t\t\"dict1\": {\n"
+"\t\t\t\"valkey\": 123\n"
+"\t\t},\n"
+"\t\t\"dict2\": {\n"
+"\t\t\t\"valkey\": 456\n"
+"\t\t},\n"
+"\t\t\"dict3\": {\n"
+"\t\t\t\"valkey\": 789\n"
+"\t\t}\n"
+"\t}\n"
+"}\n";
+
+static const char *tabdict_table =
+"Root               Value Key\n"
+"        Dict 1:          123\n"
+"        Dict 2:          456\n"
+"        Dict 3:          789\n"
+"\n";
+
+TEST_BEGIN(test_tabdict) {
+	assert_emit_output(&emit_tabdict, tabdict_json, tabdict_table);
+}
+TEST_END
+
 int
 main(void) {
 	return test_no_reentrancy(
@@ -416,5 +629,7 @@ main(void) {
 	    test_types,
 	    test_json_arr,
 	    test_hdict,
-	    test_hdict_split_end);
+	    test_hdict_split_end,
+	    test_tabarr,
+	    test_tabdict);
 }
