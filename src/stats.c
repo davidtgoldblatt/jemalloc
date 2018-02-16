@@ -84,6 +84,26 @@ gen_mutex_ctl_str(char *str, size_t buf_len, const char *prefix,
 	malloc_snprintf(str, buf_len, "stats.%s.%s.%s", prefix, mutex, counter);
 }
 
+/* Wires up the shape for a single mutex. */
+static void
+mutex_stats_wire_shape(emitter_shape_t *mutex, emitter_shape_t *parent,
+    emitter_shape_t counters[mutex_prof_num_counters]) {
+	emitter_shape_init_dict(mutex, parent, "", "",
+	    emitter_justify_left, 24);
+
+	int i = 0;
+#define EMIT_uint64_t emitter_type_uint64
+#define EMIT_uint32_t emitter_type_uint32
+#define OP(name, type) \
+	emitter_shape_init_primitive(&counters[i], mutex, #name, #name,	\
+	    emitter_justify_right, 20, EMIT_##type);			\
+	i++;
+	MUTEX_PROF_COUNTERS
+#undef OP
+#undef EMIT_uint32_t
+#undef EMIT_uint64_t
+}
+
 static void
 read_arena_bin_mutex_stats(unsigned arena_ind, unsigned bin_ind,
     uint64_t results[mutex_prof_num_counters]) {
@@ -990,29 +1010,27 @@ stats_print_helper(emitter_t *emitter, bool json, bool merged, bool destroyed,
 	emitter_json_dict_end(emitter); /* Close "background_thread". */
 	emitter_table_hdict_end(emitter);
 
-	if (json) {
-		if (mutex) {
-			malloc_cprintf(write_cb, cbopaque, ",\n");
-			malloc_cprintf(write_cb, cbopaque,
-			    "\t\t\t\"mutexes\": {\n");
-			mutex_prof_global_ind_t i;
-			for (i = 0; i < mutex_prof_num_global_mutexes; i++) {
-				mutex_stats_output_json(write_cb, cbopaque,
-				    global_mutex_names[i], mutex_stats[i],
-				    "\t\t\t\t",
-				    i == mutex_prof_num_global_mutexes - 1);
+	if (mutex) {
+		emitter_shape_t mutexes;
+		emitter_shape_init_root(&mutexes, "mutexes", "",
+		    emitter_justify_right, 0);
+
+		emitter_shape_t mutex;
+		emitter_shape_t mutex_counters[mutex_prof_num_counters];
+		mutex_stats_wire_shape(&mutex, &mutexes, mutex_counters);
+
+		emitter_tabdict_begin(emitter, &mutexes);
+
+		for (int i = 0; i < mutex_prof_num_global_mutexes; i++) {
+			mutex.json_key = global_mutex_names[i];
+			mutex.table_key = global_mutex_names[i];
+			for (int j = 0; j < mutex_prof_num_counters; j++) {
+				mutex_counters[j].uint64_value =
+				    mutex_stats[i][j];
 			}
-			malloc_cprintf(write_cb, cbopaque, "\t\t\t}\n");
+			emitter_tabdict_kv(emitter, &mutexes);
 		}
-	} else {
-		if (mutex) {
-			mutex_prof_global_ind_t i;
-			for (i = 0; i < mutex_prof_num_global_mutexes; i++) {
-				mutex_stats_output(write_cb, cbopaque,
-				    global_mutex_names[i], mutex_stats[i],
-				    i == 0);
-			}
-		}
+		emitter_tabdict_end(emitter);
 	}
 
 	emitter_json_hdict_end(emitter); /* Close "stats". */
