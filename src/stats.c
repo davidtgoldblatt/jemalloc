@@ -435,6 +435,10 @@ stats_arena_print(void (*write_cb)(void *, const char *), void *cbopaque,
 	size_t tcache_bytes;
 	uint64_t uptime;
 
+	if (json) {
+		malloc_cprintf(write_cb, cbopaque, "\n");
+	}
+
 	CTL_GET("arenas.page", &page, size_t);
 
 	CTL_M2_GET("stats.arenas.0.nthreads", i, &nthreads, unsigned);
@@ -1035,21 +1039,10 @@ stats_print_helper(emitter_t *emitter, bool json, bool merged, bool destroyed,
 
 	emitter_json_hdict_end(emitter); /* Close "stats". */
 
-	if (json) {
-		if (merged || unmerged || destroyed) {
-			malloc_cprintf(write_cb, cbopaque, ",\n");
-		} else {
-			malloc_cprintf(write_cb, cbopaque, "\n");
-		}
-	}
-
 	if (merged || destroyed || unmerged) {
 		unsigned narenas;
 
-		if (json) {
-			malloc_cprintf(write_cb, cbopaque,
-			    "\t\t\"stats.arenas\": {\n");
-		}
+		emitter_json_dict_begin(emitter, "stats.arenas");
 
 		CTL_GET("arenas.narenas", &narenas, unsigned);
 		{
@@ -1058,7 +1051,7 @@ stats_print_helper(emitter_t *emitter, bool json, bool merged, bool destroyed,
 			size_t sz;
 			VARIABLE_ARRAY(bool, initialized, narenas);
 			bool destroyed_initialized;
-			unsigned i, j, ninitialized;
+			unsigned i, ninitialized;
 
 			xmallctlnametomib("arena.0.initialized", mib, &miblen);
 			for (i = ninitialized = 0; i < narenas; i++) {
@@ -1078,79 +1071,48 @@ stats_print_helper(emitter_t *emitter, bool json, bool merged, bool destroyed,
 			/* Merged stats. */
 			if (merged && (ninitialized > 1 || !unmerged)) {
 				/* Print merged arena stats. */
-				if (json) {
-					malloc_cprintf(write_cb, cbopaque,
-					    "\t\t\t\"merged\": {\n");
-				} else {
-					malloc_cprintf(write_cb, cbopaque,
-					    "\nMerged arenas stats:\n");
-				}
+				emitter_json_dict_begin(emitter, "merged");
+				emitter_table_note(emitter,
+				    "\nMerged arena stats");
 				stats_arena_print(write_cb, cbopaque, json,
 				    MALLCTL_ARENAS_ALL, bins, large, mutex);
-				if (json) {
-					malloc_cprintf(write_cb, cbopaque,
-					    "\t\t\t}%s\n",
-					    ((destroyed_initialized &&
-					    destroyed) || unmerged) ?  "," :
-					    "");
-				}
+				emitter_json_dict_end(emitter);
 			}
 
 			/* Destroyed stats. */
 			if (destroyed_initialized && destroyed) {
 				/* Print destroyed arena stats. */
-				if (json) {
-					malloc_cprintf(write_cb, cbopaque,
-					    "\t\t\t\"destroyed\": {\n");
-				} else {
-					malloc_cprintf(write_cb, cbopaque,
-					    "\nDestroyed arenas stats:\n");
-				}
+				emitter_json_dict_begin(emitter, "destroyed");
+				emitter_table_note(emitter,
+				    "\nDestroyed arena stats");
 				stats_arena_print(write_cb, cbopaque, json,
 				    MALLCTL_ARENAS_DESTROYED, bins, large,
 				    mutex);
-				if (json) {
-					malloc_cprintf(write_cb, cbopaque,
-					    "\t\t\t}%s\n", unmerged ?  "," :
-					    "");
-				}
+				emitter_json_dict_end(emitter);
 			}
 
 			/* Unmerged stats. */
 			if (unmerged) {
-				for (i = j = 0; i < narenas; i++) {
+				char buf[100];
+				for (i = 0; i < narenas; i++) {
 					if (initialized[i]) {
-						if (json) {
-							j++;
-							malloc_cprintf(write_cb,
-							    cbopaque,
-							    "\t\t\t\"%u\": {\n",
-							    i);
-						} else {
-							malloc_cprintf(write_cb,
-							    cbopaque,
-							    "\narenas[%u]:\n",
-							    i);
-						}
+						malloc_snprintf(buf, 100, "%u",
+						    i);
+						emitter_json_dict_begin(
+						    emitter, buf);
+						malloc_snprintf(buf, 100,
+						    "\narenas[%u]", i);
+						emitter_table_note(emitter,
+						    buf);
 						stats_arena_print(write_cb,
 						    cbopaque, json, i, bins,
 						    large, mutex);
-						if (json) {
-							malloc_cprintf(write_cb,
-							    cbopaque,
-							    "\t\t\t}%s\n", (j <
-							    ninitialized) ? ","
-							    : "");
-						}
+						emitter_json_dict_end(emitter);
 					}
 				}
 			}
 		}
-
-		if (json) {
-			malloc_cprintf(write_cb, cbopaque,
-			    "\t\t}\n");
-		}
+		emitter_json_dict_end(emitter);
 	}
 }
 
