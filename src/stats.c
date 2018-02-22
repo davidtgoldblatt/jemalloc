@@ -421,9 +421,6 @@ stats_arena_mutexes_print(void (*write_cb)(void *, const char *),
 static void
 stats_arena_print(emitter_t *emitter, unsigned i, bool bins, bool large,
     bool mutex) {
-	unsigned nthreads;
-	const char *dss;
-	ssize_t dirty_decay_ms, muzzy_decay_ms;
 	size_t page, pactive, pdirty, pmuzzy, mapped, retained;
 	size_t base, internal, resident, metadata_thp;
 	uint64_t dirty_npurge, dirty_nmadvise, dirty_purged;
@@ -433,7 +430,6 @@ stats_arena_print(emitter_t *emitter, unsigned i, bool bins, bool large,
 	size_t large_allocated;
 	uint64_t large_nmalloc, large_ndalloc, large_nrequests;
 	size_t tcache_bytes;
-	uint64_t uptime;
 
 	/*
 	 * These should be deleted.  We keep them around for a while, to aid in
@@ -443,43 +439,31 @@ stats_arena_print(emitter_t *emitter, unsigned i, bool bins, bool large,
 	void *cbopaque = emitter->cbopaque;
 	bool json = (emitter->output == emitter_output_json);
 
-	if (json) {
-		malloc_cprintf(write_cb, cbopaque, "\n");
-	}
-
 	CTL_GET("arenas.page", &page, size_t);
 
+	unsigned nthreads;
 	CTL_M2_GET("stats.arenas.0.nthreads", i, &nthreads, unsigned);
-	if (json) {
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\t\"nthreads\": %u,\n", nthreads);
-	} else {
-		malloc_cprintf(write_cb, cbopaque,
-		    "assigned threads: %u\n", nthreads);
-	}
+	emitter_simple_kv(emitter, "nthreads", "assigned threads",
+	    emitter_type_unsigned, &nthreads);
 
+	uint64_t uptime;
 	CTL_M2_GET("stats.arenas.0.uptime", i, &uptime, uint64_t);
-	if (json) {
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\t\"uptime_ns\": %"FMTu64",\n", uptime);
-	} else {
-		malloc_cprintf(write_cb, cbopaque,
-		    "uptime: %"FMTu64"\n", uptime);
-	}
+	emitter_simple_kv(emitter, "uptime_ns", "uptime", emitter_type_uint64,
+	    &uptime);
 
+	const char *dss;
 	CTL_M2_GET("stats.arenas.0.dss", i, &dss, const char *);
-	if (json) {
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\t\"dss\": \"%s\",\n", dss);
-	} else {
-		malloc_cprintf(write_cb, cbopaque,
-		    "dss allocation precedence: %s\n", dss);
-	}
+	emitter_simple_kv(emitter, "dss", "dss allocation precedence",
+	    emitter_type_string, &dss);
 
+	ssize_t dirty_decay_ms;
 	CTL_M2_GET("stats.arenas.0.dirty_decay_ms", i, &dirty_decay_ms,
 	    ssize_t);
+
+	ssize_t muzzy_decay_ms;
 	CTL_M2_GET("stats.arenas.0.muzzy_decay_ms", i, &muzzy_decay_ms,
 	    ssize_t);
+
 	CTL_M2_GET("stats.arenas.0.pactive", i, &pactive, size_t);
 	CTL_M2_GET("stats.arenas.0.pdirty", i, &pdirty, size_t);
 	CTL_M2_GET("stats.arenas.0.pmuzzy", i, &pmuzzy, size_t);
@@ -491,30 +475,43 @@ stats_arena_print(emitter_t *emitter, unsigned i, bool bins, bool large,
 	CTL_M2_GET("stats.arenas.0.muzzy_nmadvise", i, &muzzy_nmadvise,
 	    uint64_t);
 	CTL_M2_GET("stats.arenas.0.muzzy_purged", i, &muzzy_purged, uint64_t);
-	if (json) {
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\t\"dirty_decay_ms\": %zd,\n", dirty_decay_ms);
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\t\"muzzy_decay_ms\": %zd,\n", muzzy_decay_ms);
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\t\"pactive\": %zu,\n", pactive);
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\t\"pdirty\": %zu,\n", pdirty);
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\t\"pmuzzy\": %zu,\n", pmuzzy);
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\t\"dirty_npurge\": %"FMTu64",\n", dirty_npurge);
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\t\"dirty_nmadvise\": %"FMTu64",\n", dirty_nmadvise);
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\t\"dirty_purged\": %"FMTu64",\n", dirty_purged);
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\t\"muzzy_npurge\": %"FMTu64",\n", muzzy_npurge);
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\t\"muzzy_nmadvise\": %"FMTu64",\n", muzzy_nmadvise);
-		malloc_cprintf(write_cb, cbopaque,
-		    "\t\t\t\t\"muzzy_purged\": %"FMTu64",\n", muzzy_purged);
+
+	/*
+	 * We shouldn't really be dispatching on output type here; better would
+	 * be to refactor the emitter code to decouple table contents from their
+	 * context.  For now though, root shapes can be emitted only as the
+	 * value associated with a single key, and fixing that would require
+	 * more trouble than it's worth (especially since this is the only place
+	 * that this matters).
+	 */
+	if (emitter->output == emitter_output_json) {
+		emitter_json_simple_kv(emitter, "dirty_decay_ms",
+		    emitter_type_ssize, &dirty_decay_ms);
+		emitter_json_simple_kv(emitter, "muzzy_decay_ms",
+		    emitter_type_ssize, &muzzy_decay_ms);
+		emitter_json_simple_kv(emitter, "pactive",
+		    emitter_type_size, &pactive);
+		emitter_json_simple_kv(emitter, "pdirty",
+		    emitter_type_size, &pdirty);
+		emitter_json_simple_kv(emitter, "pmuzzy",
+		    emitter_type_size, &pmuzzy);
+		emitter_json_simple_kv(emitter, "dirty_npurge",
+		    emitter_type_u64, &dirty_npurge);
+		emitter_json_simple_kv(emitter, "dirty_nmadvise",
+		    emitter_type_u64, &dirty_nmadvise);
+		emitter_json_simple_kv(emitter, "dirty_purged",
+		    emitter_type_u64, &dirty_purged);
+		emitter_json_simple_kv(emitter, "muzzy_npurge",
+		    emitter_type_u64, &muzzy_npurge);
+		emitter_json_simple_kv(emitter, "muzzy_nmadvise",
+		    emitter_type_u64, &muzzy_nmadvise);
+		emitter_json_simple_kv(emitter, "muzzy_purged",
+		    emitter_type_u64, &muzzy_purged);
 	} else {
+		emitter_shape_t root;
+		emitter_shape_init_root(&root, NULL, "decaying",
+		    emitter_justify_left, 11);
+
 		malloc_cprintf(write_cb, cbopaque,
 		    "decaying:  time       npages       sweeps     madvises"
 		    "       purged\n");
