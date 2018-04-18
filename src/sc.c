@@ -2,6 +2,7 @@
 
 #include "jemalloc/internal/assert.h"
 #include "jemalloc/internal/bit_util.h"
+#include "jemalloc/internal/bitmap.h"
 #include "jemalloc/internal/sc.h"
 
 sc_data_t sc_data_global;
@@ -211,8 +212,28 @@ size_classes(
 	sc_data->large_maxclass = large_maxclass;
 }
 
+static void
+do_extra_small_tweak(sc_data_t *sc_data) {
+	for (int i = 0; i < sc_data->nbins; i++) {
+		sc_t *sc = &sc_data->sc[i];
+		size_t size = ((size_t)1U << sc->lg_base)
+		    + ((size_t)sc->ndelta << sc->lg_delta);
+		if (size > 128) {
+			break;
+		}
+		size_t npages_guess = 4;
+		while ((npages_guess << LG_PAGE) > size * BITMAP_MAXBITS) {
+			--npages_guess;
+		}
+		if (npages_guess == 0) {
+			continue;
+		}
+		sc->pgs = (int)npages_guess;
+	}
+}
+
 void
-sc_data_init(sc_data_t *sc_data) {
+sc_data_init(sc_data_t *sc_data, bool extra_small_tweak) {
 	assert(!sc_data->initialized);
 
 	int lg_max_lookup = 12;
@@ -221,9 +242,13 @@ sc_data_init(sc_data_t *sc_data) {
 	    lg_max_lookup, LG_PAGE, 2);
 
 	sc_data->initialized = true;
+
+	if (extra_small_tweak) {
+		do_extra_small_tweak(sc_data);
+	}
 }
 
 void
-sc_boot() {
-	sc_data_init(&sc_data_global);
+sc_boot(bool extra_small_tweak) {
+	sc_data_init(&sc_data_global, extra_small_tweak);
 }

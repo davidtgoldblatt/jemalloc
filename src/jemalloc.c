@@ -67,6 +67,7 @@ bool	opt_utrace = false;
 bool	opt_xmalloc = false;
 bool	opt_zero = false;
 unsigned	opt_narenas = 0;
+bool 	opt_extra_small_tweak = false;
 
 unsigned	ncpus;
 
@@ -1179,6 +1180,8 @@ malloc_conf_init(void) {
 					   "max_background_threads", 1,
 					   opt_max_background_threads, yes, yes,
 					   true);
+			CONF_HANDLE_BOOL(opt_extra_small_tweak,
+			    "extra_small_tweak");
 			if (config_prof) {
 				CONF_HANDLE_BOOL(opt_prof, "prof")
 				CONF_HANDLE_CHAR_P(opt_prof_prefix,
@@ -1279,7 +1282,7 @@ malloc_init_hard_a0_locked() {
 
 	malloc_conf_init();
 
-	sc_boot();
+	sc_boot(opt_extra_small_tweak);
 	sz_boot(&sc_data_global);
 	bin_boot(&sc_data_global);
 

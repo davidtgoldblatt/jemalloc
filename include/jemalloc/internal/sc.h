@@ -296,7 +296,7 @@ struct sc_data_s {
 };
 
 extern sc_data_t sc_data_global;
-void sc_data_init(sc_data_t *data);
-void sc_boot();
+void sc_data_init(sc_data_t *data, bool extra_small_tweak);
+void sc_boot(bool extra_small_tweak);
 
 #endif /* JEMALLOC_INTERNAL_SC_H */
