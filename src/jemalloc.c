@@ -1277,6 +1277,8 @@ static bool
 malloc_init_hard_a0_locked() {
 	malloc_initializer = INITIALIZER;
 
+	malloc_conf_init();
+
 	sc_boot();
 	sz_boot(&sc_data_global);
 	bin_boot(&sc_data_global);
@@ -1284,7 +1286,6 @@ malloc_init_hard_a0_locked() {
 	if (config_prof) {
 		prof_boot0();
 	}
-	malloc_conf_init();
 	if (opt_stats_print) {
 		/* Print statistics at exit. */
 		if (atexit(stats_print_atexit) != 0) {
