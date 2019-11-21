@@ -10,4 +10,10 @@ static inline bool
 metadata_thp_enabled(void) {
 	return (opt_metadata_thp != metadata_thp_disabled);
 }
+
+static inline ehooks_t *
+base_ehooks_get(base_t *base) {
+	return &base->ehooks;
+}
+
 #endif /* JEMALLOC_INTERNAL_BASE_INLINES_H */

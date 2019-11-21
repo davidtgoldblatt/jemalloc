@@ -126,13 +126,6 @@ struct arena_s {
 	atomic_zu_t		extent_sn_next;
 
 	/*
-	 * Represents a dss_prec_t, but atomically.
-	 *
-	 * Synchronization: atomic.
-	 */
-	atomic_u_t		dss_prec;
-
-	/*
 	 * Number of pages in active extents.
 	 *
 	 * Synchronization: atomic.
