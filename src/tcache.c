@@ -479,8 +479,7 @@ tcache_init(tsd_t *tsd, tcache_slow_t *tcache_slow, tcache_t *tcache,
 	memset(tcache->bins, 0, sizeof(cache_bin_t) * nhbins);
 
 	size_t cur_offset = 0;
-	cache_bin_preincrement(tcache_bin_info, nhbins, mem,
-	    &cur_offset);
+	cache_bin_preincrement(mem, &cur_offset);
 	for (unsigned i = 0; i < nhbins; i++) {
 		if (i < SC_NBINS) {
 			tcache_slow->lg_fill_div[i] = 1;
@@ -490,8 +489,7 @@ tcache_init(tsd_t *tsd, tcache_slow_t *tcache_slow, tcache_t *tcache,
 		cache_bin_init(cache_bin, &tcache_bin_info[i], mem,
 		    &cur_offset);
 	}
-	cache_bin_postincrement(tcache_bin_info, nhbins, mem,
-	    &cur_offset);
+	cache_bin_postincrement(mem, &cur_offset);
 	/* Sanity check that the whole stack is used. */
 	assert(cur_offset == tcache_bin_alloc_size);
 }
@@ -801,8 +799,8 @@ tcache_boot(tsdn_t *tsdn, base_t *base) {
 	if (tcache_bin_info == NULL) {
 		return true;
 	}
-	unsigned i, ncached_max;
-	for (i = 0; i < SC_NBINS; i++) {
+	unsigned ncached_max;
+	for (unsigned i = 0; i < SC_NBINS; i++) {
 		if ((bin_infos[i].nregs << 1) <= TCACHE_NSLOTS_SMALL_MIN) {
 			ncached_max = TCACHE_NSLOTS_SMALL_MIN;
 		} else if ((bin_infos[i].nregs << 1) <=
@@ -813,11 +811,17 @@ tcache_boot(tsdn_t *tsdn, base_t *base) {
 		}
 		cache_bin_info_init(&tcache_bin_info[i], ncached_max);
 	}
-	for (; i < nhbins; i++) {
+	for (unsigned i = SC_NBINS; i < nhbins; i++) {
 		cache_bin_info_init(&tcache_bin_info[i], TCACHE_NSLOTS_LARGE);
 	}
-	cache_bin_info_compute_alloc(tcache_bin_info, i, &tcache_bin_alloc_size,
-	    &tcache_bin_alloc_alignment);
+
+	cache_bin_alloc_info_t alloc_info;
+	cache_bin_alloc_info_init(&alloc_info);
+	for (unsigned i = 0; i < nhbins; i++) {
+		cache_bin_alloc_info_update(&alloc_info, &tcache_bin_info[i]);
+	}
+	tcache_bin_alloc_size = alloc_info.size;
+	tcache_bin_alloc_alignment = alloc_info.alignment;
 
 	return false;
 }

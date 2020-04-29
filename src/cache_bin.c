@@ -12,8 +12,7 @@ cache_bin_info_init(cache_bin_info_t *info,
 }
 
 void
-cache_bin_info_compute_alloc(cache_bin_info_t *infos, szind_t ninfos,
-    size_t *size, size_t *alignment) {
+cache_bin_alloc_info_init(cache_bin_alloc_info_t *alloc_info) {
 	/* For the total bin stack region (per tcache), reserve 2 more slots so
 	 * that
 	 * 1) the empty position can be safely read on the fast path before
@@ -21,30 +20,27 @@ cache_bin_info_compute_alloc(cache_bin_info_t *infos, szind_t ninfos,
 	 * 2) the cur_ptr can go beyond the empty position by 1 step safely on
 	 * the fast path (i.e. no overflow).
 	 */
-	*size = sizeof(void *) * 2;
-	for (szind_t i = 0; i < ninfos; i++) {
-		*size += infos[i].ncached_max * sizeof(void *);
-	}
-
+	alloc_info->size = sizeof(void *) * 2;
 	/*
 	 * Align to at least PAGE, to minimize the # of TLBs needed by the
 	 * smaller sizes; also helps if the larger sizes don't get used at all.
 	 */
-	*alignment = PAGE;
+	alloc_info->alignment = PAGE;
 }
 
 void
-cache_bin_preincrement(cache_bin_info_t *infos, szind_t ninfos, void *alloc,
-    size_t *cur_offset) {
-	if (config_debug) {
-		size_t computed_size;
-		size_t computed_alignment;
+cache_bin_alloc_info_update(cache_bin_alloc_info_t *alloc_info,
+    cache_bin_info_t *info) {
+	alloc_info->size += info->ncached_max * sizeof(void *);
+}
 
-		/* Pointer should be as aligned as we asked for. */
-		cache_bin_info_compute_alloc(infos, ninfos, &computed_size,
-		    &computed_alignment);
-		assert(((uintptr_t)alloc & (computed_alignment - 1)) == 0);
-	}
+void
+cache_bin_preincrement(void *alloc, size_t *cur_offset) {
+	/*
+	 * We asked for PAGE-alignment in init, above.  Make sure the caller
+	 * gave it to us.
+	 */
+	assert(((uintptr_t)alloc & PAGE_MASK) == 0);
 	/*
 	 * Leave a noticeable mark pattern on the boundaries, in case a bug
 	 * starts leaking those.  Make it look like the junk pattern but be
@@ -56,8 +52,7 @@ cache_bin_preincrement(cache_bin_info_t *infos, szind_t ninfos, void *alloc,
 }
 
 void
-cache_bin_postincrement(cache_bin_info_t *infos, szind_t ninfos, void *alloc,
-    size_t *cur_offset) {
+cache_bin_postincrement(void *alloc, size_t *cur_offset) {
 	/* Note: a7 vs. 7a above -- this tells you which pointer leaked. */
 	uintptr_t trailing_ptr_junk = (uintptr_t)0xa7a7a7a7a7a7a7a7ULL;
 	*(uintptr_t *)((uintptr_t)alloc + *cur_offset) = trailing_ptr_junk;

@@ -408,12 +408,19 @@ cache_bin_finish_flush(cache_bin_t *bin, cache_bin_info_t *info,
  */
 void cache_bin_info_init(cache_bin_info_t *bin_info,
     cache_bin_sz_t ncached_max);
+
 /*
  * Given an array of initialized cache_bin_info_ts, determine how big an
  * allocation is required to initialize a full set of cache_bin_ts.
  */
-void cache_bin_info_compute_alloc(cache_bin_info_t *infos, szind_t ninfos,
-    size_t *size, size_t *alignment);
+typedef struct cache_bin_alloc_info_s cache_bin_alloc_info_t;
+struct cache_bin_alloc_info_s {
+	size_t size;
+	size_t alignment;
+};
+void cache_bin_alloc_info_init(cache_bin_alloc_info_t *alloc_info);
+void cache_bin_alloc_info_update(cache_bin_alloc_info_t *alloc_info,
+    cache_bin_info_t *info);
 
 /*
  * Actually initialize some cache bins.  Callers should allocate the backing
@@ -422,10 +429,8 @@ void cache_bin_info_compute_alloc(cache_bin_info_t *infos, szind_t ninfos,
  * cache_bin_postincrement.  *alloc_cur will then point immediately past the end
  * of the allocation.
  */
-void cache_bin_preincrement(cache_bin_info_t *infos, szind_t ninfos,
-    void *alloc, size_t *cur_offset);
-void cache_bin_postincrement(cache_bin_info_t *infos, szind_t ninfos,
-    void *alloc, size_t *cur_offset);
+void cache_bin_preincrement(void *alloc, size_t *cur_offset);
+void cache_bin_postincrement(void *alloc, size_t *cur_offset);
 void cache_bin_init(cache_bin_t *bin, cache_bin_info_t *info, void *alloc,
     size_t *cur_offset);
 

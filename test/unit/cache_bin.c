@@ -60,18 +60,20 @@ TEST_BEGIN(test_cache_bin) {
 	cache_bin_info_t info;
 	cache_bin_info_init(&info, TCACHE_NSLOTS_SMALL_MAX);
 
-	size_t size;
-	size_t alignment;
-	cache_bin_info_compute_alloc(&info, 1, &size, &alignment);
-	void *mem = mallocx(size, MALLOCX_ALIGN(alignment));
+	cache_bin_alloc_info_t alloc_info;
+	cache_bin_alloc_info_init(&alloc_info);
+	cache_bin_alloc_info_update(&alloc_info, &info);
+	void *mem = mallocx(alloc_info.size,
+	    MALLOCX_ALIGN(alloc_info.alignment));
 	assert_ptr_not_null(mem, "Unexpected mallocx failure");
 
 	size_t cur_offset = 0;
-	cache_bin_preincrement(&info, 1, mem, &cur_offset);
+	cache_bin_preincrement(mem, &cur_offset);
 	cache_bin_init(&bin, &info, mem, &cur_offset);
-	cache_bin_postincrement(&info, 1, mem, &cur_offset);
+	cache_bin_postincrement(mem, &cur_offset);
 
-	assert_zu_eq(cur_offset, size, "Should use all requested memory");
+	assert_zu_eq(cur_offset, alloc_info.size,
+	    "Should use all requested memory");
 
 	/* Initialize to empty; should then have 0 elements. */
 	cache_bin_sz_t ncached_max = cache_bin_info_ncached_max(&info);
