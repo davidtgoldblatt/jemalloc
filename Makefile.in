@@ -137,6 +137,7 @@ C_SRCS := $(srcroot)src/jemalloc.c \
 	$(srcroot)src/rtree.c \
 	$(srcroot)src/safety_check.c \
 	$(srcroot)src/sc.c \
+	$(srcroot)src/soc.c \
 	$(srcroot)src/stats.c \
 	$(srcroot)src/sz.c \
 	$(srcroot)src/tcache.c \

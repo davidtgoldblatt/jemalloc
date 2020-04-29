@@ -118,6 +118,9 @@
     <ClCompile Include="..\..\..\..\src\sc.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\..\src\soc.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\..\..\src\stats.c">
       <Filter>Source Files</Filter>
     </ClCompile>
