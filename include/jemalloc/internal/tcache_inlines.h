@@ -4,6 +4,7 @@
 #include "jemalloc/internal/bin.h"
 #include "jemalloc/internal/jemalloc_internal_types.h"
 #include "jemalloc/internal/sc.h"
+#include "jemalloc/internal/soc.h"
 #include "jemalloc/internal/sz.h"
 #include "jemalloc/internal/util.h"
 
@@ -64,40 +65,21 @@ tcache_alloc_small(tsd_t *tsd, arena_t *arena, tcache_t *tcache,
 
 JEMALLOC_ALWAYS_INLINE void *
 tcache_alloc_large(tsd_t *tsd, arena_t *arena, tcache_t *tcache, size_t size,
-    szind_t binind, bool zero, bool slow_path) {
+    szind_t szind, bool zero, bool slow_path) {
 	void *ret;
 	bool tcache_success;
 
-	assert(binind >= SC_NBINS && binind < nhbins);
-	cache_bin_t *bin = &tcache->bins[binind];
+	assert(szind >= SC_NBINS && szind < nhbins);
+	cache_bin_t *bin = &tcache->bins[szind];
 	ret = cache_bin_alloc(bin, &tcache_success);
 	assert(tcache_success == (ret != NULL));
 	if (unlikely(!tcache_success)) {
-		/*
-		 * Only allocate one large object at a time, because it's quite
-		 * expensive to create one and not use it.
-		 */
 		arena = arena_choose(tsd, arena);
-		if (unlikely(arena == NULL)) {
-			return NULL;
-		}
-
-		ret = large_malloc(tsd_tsdn(tsd), arena, sz_s2u(size), zero);
-		if (ret == NULL) {
-			return NULL;
-		}
+		ret = soc_alloc_large(tsd, &soc_global, szind, zero, arena);
 	} else {
-		if (unlikely(zero)) {
-			size_t usize = sz_index2size(binind);
-			assert(usize <= tcache_maxclass);
-			memset(ret, 0, usize);
-		}
-
-		if (config_stats) {
-			bin->tstats.nrequests++;
-		}
+		size_t usize = sz_index2size(szind);
+		memset(ret, 0, usize);
 	}
-
 	return ret;
 }
 

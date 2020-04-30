@@ -6,6 +6,7 @@
 #include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/safety_check.h"
 #include "jemalloc/internal/sc.h"
+#include "jemalloc/internal/soc.h"
 
 /******************************************************************************/
 /* Data. */
@@ -134,12 +135,13 @@ tcache_alloc_small_hard(tsdn_t *tsdn, arena_t *arena,
     bool *tcache_success) {
 	tcache_slow_t *tcache_slow = tcache->tcache_slow;
 	void *ret;
+	cache_bin_info_t *cache_bin_info = &tcache_bin_info[binind];
 
 	assert(tcache_slow->arena != NULL);
 	unsigned nfill = cache_bin_info_ncached_max(&tcache_bin_info[binind])
 	    >> tcache_slow->lg_fill_div[binind];
-	arena_cache_bin_fill_small(tsdn, arena, cache_bin,
-	    &tcache_bin_info[binind], binind, nfill);
+	soc_cache_bin_fill_small(tsdn, &soc_global, binind, arena, cache_bin,
+	    cache_bin_info, nfill);
 	tcache_slow->bin_refilled[binind] = true;
 	ret = cache_bin_alloc(cache_bin, tcache_success);
 
@@ -151,8 +153,8 @@ tcache_bin_flush(tsd_t *tsd, tcache_t *tcache, cache_bin_t *cache_bin,
     szind_t szind, unsigned rem) {
 	arena_t *stats_arena = tcache->tcache_slow->arena;
 	cache_bin_info_t *cache_bin_info = &tcache_bin_info[szind];
-	arena_cache_bin_flush(tsd, cache_bin, cache_bin_info, szind, rem,
-	    stats_arena);
+	soc_cache_bin_flush(tsd, &soc_global, szind, stats_arena, cache_bin,
+	    cache_bin_info, rem);
 }
 
 void

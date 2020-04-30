@@ -1,6 +1,7 @@
 #include "test/jemalloc_test.h"
 
 #include "jemalloc/internal/hook.h"
+#include "jemalloc/internal/soc.h"
 #include "jemalloc/internal/util.h"
 
 TEST_BEGIN(test_mallctl_errors) {
@@ -950,8 +951,11 @@ TEST_BEGIN(test_thread_idle) {
 	err = mallctlbymib(mib, miblen, &small_dalloc_post_idle, &sz, NULL, 0);
 	expect_d_eq(err, 0, "");
 
-	expect_u64_lt(small_dalloc_pre_idle, small_dalloc_post_idle,
-	    "Purge didn't flush the tcache");
+	/* With the SOC on, purging might not touch the arena. */
+	if (!soc_global_enabled()) {
+		expect_u64_lt(small_dalloc_pre_idle, small_dalloc_post_idle,
+		    "Purge didn't flush the tcache");
+	}
 }
 TEST_END
 

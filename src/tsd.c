@@ -242,7 +242,10 @@ tsd_data_init(tsd_t *tsd) {
 	 */
 	rtree_ctx_data_init(tsd_rtree_ctxp_get_unsafe(tsd));
 	tsd_prng_state_init(tsd);
-	tsd_te_init(tsd); /* event_init may use the prng state above. */
+	/* event_init may use the prng state above. */
+	tsd_te_init(tsd);
+	shard_picker_init(tsd_shard_pickerp_get(tsd), tsd_prng_statep_get(tsd));
+
 	return tsd_tcache_enabled_data_init(tsd);
 }
 

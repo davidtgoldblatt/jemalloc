@@ -1,5 +1,6 @@
 #include "test/jemalloc_test.h"
 
+#include "jemalloc/internal/soc.h"
 #include "jemalloc/internal/ticker.h"
 
 static nstime_monotonic_t *nstime_monotonic_orig;
@@ -345,6 +346,13 @@ TEST_BEGIN(test_decay_ticks) {
 	expect_d_eq(mallctl("tcache.create", (void *)&tcache_ind, &sz,
 	    NULL, 0), 0, "Unexpected mallctl failure");
 
+	if (soc_global_enabled()) {
+		/*
+		 * The tcache doesn't always touch the arena on flush when the
+		 * SOC is enabled.
+		 */
+		goto label_test_end;
+	}
 	for (i = 0; i < sizeof(tcache_sizes) / sizeof(size_t); i++) {
 		sz = tcache_sizes[i];
 

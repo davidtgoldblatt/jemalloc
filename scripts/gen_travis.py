@@ -55,6 +55,10 @@ malloc_conf_unusuals = [
     'dss:primary',
     'percpu_arena:percpu',
     'background_thread:true',
+    ('soc_tiny_shards:4,soc_tiny_bytes:10485760,'
+    'soc_small_shards:4,soc_small_bytes:10485760,'
+    'soc_medium_shards:4,soc_medium_bytes:10485760,'
+    'soc_large_shards:4,soc_large_bytes:10485760'),
 ]
 
 all_unusuals = (

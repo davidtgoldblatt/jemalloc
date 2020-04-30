@@ -17,6 +17,7 @@
 #include "jemalloc/internal/rtree.h"
 #include "jemalloc/internal/safety_check.h"
 #include "jemalloc/internal/sc.h"
+#include "jemalloc/internal/soc.h"
 #include "jemalloc/internal/spin.h"
 #include "jemalloc/internal/sz.h"
 #include "jemalloc/internal/ticker.h"
@@ -1122,7 +1123,6 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 
 		while (*opts != '\0' && !malloc_conf_next(&opts, &k, &klen, &v,
 		    &vlen)) {
-
 #define CONF_ERROR(msg, k, klen, v, vlen)				\
 			if (!initial_call) {				\
 				malloc_conf_error(			\
@@ -1507,6 +1507,38 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 				}
 				CONF_CONTINUE;
 			}
+			CONF_HANDLE_UNSIGNED(soc_tiny_shards,
+			    "soc_tiny_shards", 1, UINT_MAX, CONF_CHECK_MIN,
+			    CONF_DONT_CHECK_MAX,
+			    false)
+			CONF_HANDLE_SIZE_T(soc_tiny_bytes, "soc_tiny_bytes",
+			    1, SC_LARGE_MAXCLASS, CONF_CHECK_MIN,
+			    CONF_CHECK_MAX, false)
+
+			CONF_HANDLE_UNSIGNED(soc_small_shards,
+			    "soc_small_shards", 1, UINT_MAX, CONF_CHECK_MIN,
+			    CONF_DONT_CHECK_MAX,
+			    false)
+			CONF_HANDLE_SIZE_T(soc_small_bytes, "soc_small_bytes",
+			    1, SC_LARGE_MAXCLASS, CONF_CHECK_MIN,
+			    CONF_CHECK_MAX, false)
+
+			CONF_HANDLE_UNSIGNED(soc_medium_shards,
+			    "soc_medium_shards", 1, UINT_MAX, CONF_CHECK_MIN,
+			    CONF_DONT_CHECK_MAX,
+			    false)
+			CONF_HANDLE_SIZE_T(soc_medium_bytes, "soc_medium_bytes",
+			    1, SC_LARGE_MAXCLASS, CONF_CHECK_MIN,
+			    CONF_CHECK_MAX, false)
+
+			CONF_HANDLE_UNSIGNED(soc_large_shards,
+			    "soc_large_shards", 1, UINT_MAX, CONF_CHECK_MIN,
+			    CONF_DONT_CHECK_MAX,
+			    false)
+			CONF_HANDLE_SIZE_T(soc_large_bytes, "soc_large_bytes",
+			    1, SC_LARGE_MAXCLASS, CONF_CHECK_MIN,
+			    CONF_CHECK_MAX, false)
+
 			CONF_ERROR("Invalid conf pair", k, klen, v, vlen);
 #undef CONF_ERROR
 #undef CONF_CONTINUE
@@ -1662,7 +1694,10 @@ malloc_init_hard_a0_locked() {
 		return true;
 	}
 	a0 = arena_get(TSDN_NULL, 0, false);
+
 	malloc_init_state = malloc_init_a0_initialized;
+
+	soc_boot();
 
 	return false;
 }
@@ -3950,6 +3985,7 @@ _malloc_prefork(void)
 		background_thread_prefork0(tsd_tsdn(tsd));
 	}
 	prof_prefork0(tsd_tsdn(tsd));
+	soc_prefork(tsd_tsdn(tsd), &soc_global);
 	if (have_background_thread) {
 		background_thread_prefork1(tsd_tsdn(tsd));
 	}
@@ -4025,6 +4061,7 @@ _malloc_postfork(void)
 			arena_postfork_parent(tsd_tsdn(tsd), arena);
 		}
 	}
+	soc_postfork_parent(tsd_tsdn(tsd), &soc_global);
 	prof_postfork_parent(tsd_tsdn(tsd));
 	if (have_background_thread) {
 		background_thread_postfork_parent(tsd_tsdn(tsd));
@@ -4055,6 +4092,7 @@ jemalloc_postfork_child(void) {
 			arena_postfork_child(tsd_tsdn(tsd), arena);
 		}
 	}
+	soc_postfork_child(tsd_tsdn(tsd), &soc_global);
 	prof_postfork_child(tsd_tsdn(tsd));
 	if (have_background_thread) {
 		background_thread_postfork_child(tsd_tsdn(tsd));

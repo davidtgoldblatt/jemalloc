@@ -1,5 +1,7 @@
 #include "test/jemalloc_test.h"
 
+#include "jemalloc/internal/soc.h"
+
 #define STRINGIFY_HELPER(x) #x
 #define STRINGIFY(x) STRINGIFY_HELPER(x)
 
@@ -301,15 +303,19 @@ TEST_BEGIN(test_stats_arenas_bins) {
 		    "nmalloc should be greater than zero");
 		expect_u64_ge(nmalloc, ndalloc,
 		    "nmalloc should be at least as large as ndalloc");
-		expect_u64_gt(nrequests, 0,
-		    "nrequests should be greater than zero");
+		if (!opt_tcache || !soc_global_enabled()) {
+			expect_u64_gt(nrequests, 0,
+			    "nrequests should be greater than zero");
+		}
 		expect_zu_gt(curregs, 0,
 		    "allocated should be greater than zero");
 		if (opt_tcache) {
 			expect_u64_gt(nfills, 0,
 			    "At least one fill should have occurred");
-			expect_u64_gt(nflushes, 0,
-			    "At least one flush should have occurred");
+			if (!soc_global_enabled()) {
+				expect_u64_gt(nflushes, 0,
+				    "At least one flush should have occurred");
+			}
 		}
 		expect_u64_gt(nslabs, 0,
 		    "At least one slab should have been allocated");

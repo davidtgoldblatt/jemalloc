@@ -35,6 +35,8 @@ matrix:
       env: CC=gcc CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--with-malloc-conf=percpu_arena:percpu" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       env: CC=gcc CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--with-malloc-conf=background_thread:true" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+    - os: linux
+      env: CC=gcc CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--with-malloc-conf=soc_tiny_shards:4,soc_tiny_bytes:10485760,soc_small_shards:4,soc_small_bytes:10485760,soc_medium_shards:4,soc_medium_bytes:10485760,soc_large_shards:4,soc_large_bytes:10485760" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: osx
       env: CC=clang CXX=clang++ COMPILER_FLAGS="" CONFIGURE_FLAGS="" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: osx
@@ -51,6 +53,8 @@ matrix:
       env: CC=gcc CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--with-lg-page=16" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: osx
       env: CC=gcc CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--with-malloc-conf=tcache:false" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+    - os: osx
+      env: CC=gcc CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--with-malloc-conf=soc_tiny_shards:4,soc_tiny_bytes:10485760,soc_small_shards:4,soc_small_bytes:10485760,soc_medium_shards:4,soc_medium_bytes:10485760,soc_large_shards:4,soc_large_bytes:10485760" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       env: CC=clang CXX=clang++ COMPILER_FLAGS="-m32" CONFIGURE_FLAGS="" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
       addons: *gcc_multilib
@@ -74,6 +78,8 @@ matrix:
       env: CC=clang CXX=clang++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--with-malloc-conf=percpu_arena:percpu" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       env: CC=clang CXX=clang++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--with-malloc-conf=background_thread:true" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+    - os: linux
+      env: CC=clang CXX=clang++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--with-malloc-conf=soc_tiny_shards:4,soc_tiny_bytes:10485760,soc_small_shards:4,soc_small_bytes:10485760,soc_medium_shards:4,soc_medium_bytes:10485760,soc_large_shards:4,soc_large_bytes:10485760" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       env: CC=gcc CXX=g++ COMPILER_FLAGS="-m32" CONFIGURE_FLAGS="--enable-debug" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
       addons: *gcc_multilib
@@ -105,6 +111,9 @@ matrix:
       env: CC=gcc CXX=g++ COMPILER_FLAGS="-m32" CONFIGURE_FLAGS="--with-malloc-conf=background_thread:true" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
       addons: *gcc_multilib
     - os: linux
+      env: CC=gcc CXX=g++ COMPILER_FLAGS="-m32" CONFIGURE_FLAGS="--with-malloc-conf=soc_tiny_shards:4,soc_tiny_bytes:10485760,soc_small_shards:4,soc_small_bytes:10485760,soc_medium_shards:4,soc_medium_bytes:10485760,soc_large_shards:4,soc_large_bytes:10485760" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      addons: *gcc_multilib
+    - os: linux
       env: CC=gcc CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--enable-debug --enable-prof" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       env: CC=gcc CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--enable-debug --disable-stats" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
@@ -123,6 +132,8 @@ matrix:
     - os: linux
       env: CC=gcc CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--enable-debug --with-malloc-conf=background_thread:true" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
+      env: CC=gcc CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--enable-debug --with-malloc-conf=soc_tiny_shards:4,soc_tiny_bytes:10485760,soc_small_shards:4,soc_small_bytes:10485760,soc_medium_shards:4,soc_medium_bytes:10485760,soc_large_shards:4,soc_large_bytes:10485760" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+    - os: linux
       env: CC=gcc CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--enable-prof --disable-stats" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       env: CC=gcc CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--enable-prof --disable-libdl" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
@@ -139,6 +150,8 @@ matrix:
     - os: linux
       env: CC=gcc CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--enable-prof --with-malloc-conf=background_thread:true" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
+      env: CC=gcc CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--enable-prof --with-malloc-conf=soc_tiny_shards:4,soc_tiny_bytes:10485760,soc_small_shards:4,soc_small_bytes:10485760,soc_medium_shards:4,soc_medium_bytes:10485760,soc_large_shards:4,soc_large_bytes:10485760" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+    - os: linux
       env: CC=gcc CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--disable-stats --disable-libdl" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       env: CC=gcc CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--disable-stats --enable-opt-safety-checks" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
@@ -153,6 +166,8 @@ matrix:
     - os: linux
       env: CC=gcc CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--disable-stats --with-malloc-conf=background_thread:true" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
+      env: CC=gcc CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--disable-stats --with-malloc-conf=soc_tiny_shards:4,soc_tiny_bytes:10485760,soc_small_shards:4,soc_small_bytes:10485760,soc_medium_shards:4,soc_medium_bytes:10485760,soc_large_shards:4,soc_large_bytes:10485760" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+    - os: linux
       env: CC=gcc CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--disable-libdl --enable-opt-safety-checks" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       env: CC=gcc CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--disable-libdl --with-lg-page=16" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
@@ -165,6 +180,8 @@ matrix:
     - os: linux
       env: CC=gcc CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--disable-libdl --with-malloc-conf=background_thread:true" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
+      env: CC=gcc CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--disable-libdl --with-malloc-conf=soc_tiny_shards:4,soc_tiny_bytes:10485760,soc_small_shards:4,soc_small_bytes:10485760,soc_medium_shards:4,soc_medium_bytes:10485760,soc_large_shards:4,soc_large_bytes:10485760" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+    - os: linux
       env: CC=gcc CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--enable-opt-safety-checks --with-lg-page=16" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       env: CC=gcc CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--enable-opt-safety-checks --with-malloc-conf=tcache:false" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
@@ -175,6 +192,8 @@ matrix:
     - os: linux
       env: CC=gcc CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--enable-opt-safety-checks --with-malloc-conf=background_thread:true" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
+      env: CC=gcc CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--enable-opt-safety-checks --with-malloc-conf=soc_tiny_shards:4,soc_tiny_bytes:10485760,soc_small_shards:4,soc_small_bytes:10485760,soc_medium_shards:4,soc_medium_bytes:10485760,soc_large_shards:4,soc_large_bytes:10485760" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+    - os: linux
       env: CC=gcc CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--with-lg-page=16 --with-malloc-conf=tcache:false" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       env: CC=gcc CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--with-lg-page=16 --with-malloc-conf=dss:primary" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
@@ -183,17 +202,27 @@ matrix:
     - os: linux
       env: CC=gcc CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--with-lg-page=16 --with-malloc-conf=background_thread:true" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
+      env: CC=gcc CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--with-lg-page=16 --with-malloc-conf=soc_tiny_shards:4,soc_tiny_bytes:10485760,soc_small_shards:4,soc_small_bytes:10485760,soc_medium_shards:4,soc_medium_bytes:10485760,soc_large_shards:4,soc_large_bytes:10485760" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+    - os: linux
       env: CC=gcc CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--with-malloc-conf=tcache:false,dss:primary" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       env: CC=gcc CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--with-malloc-conf=tcache:false,percpu_arena:percpu" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       env: CC=gcc CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--with-malloc-conf=tcache:false,background_thread:true" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
+      env: CC=gcc CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--with-malloc-conf=tcache:false,soc_tiny_shards:4,soc_tiny_bytes:10485760,soc_small_shards:4,soc_small_bytes:10485760,soc_medium_shards:4,soc_medium_bytes:10485760,soc_large_shards:4,soc_large_bytes:10485760" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+    - os: linux
       env: CC=gcc CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--with-malloc-conf=dss:primary,percpu_arena:percpu" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       env: CC=gcc CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--with-malloc-conf=dss:primary,background_thread:true" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
+      env: CC=gcc CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--with-malloc-conf=dss:primary,soc_tiny_shards:4,soc_tiny_bytes:10485760,soc_small_shards:4,soc_small_bytes:10485760,soc_medium_shards:4,soc_medium_bytes:10485760,soc_large_shards:4,soc_large_bytes:10485760" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+    - os: linux
       env: CC=gcc CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--with-malloc-conf=percpu_arena:percpu,background_thread:true" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+    - os: linux
+      env: CC=gcc CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--with-malloc-conf=percpu_arena:percpu,soc_tiny_shards:4,soc_tiny_bytes:10485760,soc_small_shards:4,soc_small_bytes:10485760,soc_medium_shards:4,soc_medium_bytes:10485760,soc_large_shards:4,soc_large_bytes:10485760" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+    - os: linux
+      env: CC=gcc CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--with-malloc-conf=background_thread:true,soc_tiny_shards:4,soc_tiny_bytes:10485760,soc_small_shards:4,soc_small_bytes:10485760,soc_medium_shards:4,soc_medium_bytes:10485760,soc_large_shards:4,soc_large_bytes:10485760" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     # Development build
     - os: linux
       env: CC=gcc CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--enable-debug --disable-cache-oblivious --enable-stats --enable-log --enable-prof" EXTRA_CFLAGS="-Werror -Wno-array-bounds"

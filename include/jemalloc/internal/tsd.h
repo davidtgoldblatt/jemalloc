@@ -8,6 +8,7 @@
 #include "jemalloc/internal/prof_types.h"
 #include "jemalloc/internal/ql.h"
 #include "jemalloc/internal/rtree_tsd.h"
+#include "jemalloc/internal/shard_pick.h"
 #include "jemalloc/internal/tcache_types.h"
 #include "jemalloc/internal/tcache_structs.h"
 #include "jemalloc/internal/util.h"
@@ -78,6 +79,7 @@ typedef ql_elm(tsd_t) tsd_link_t;
     O(tsd_link,			tsd_link_t,		tsd_link_t)	\
     O(in_hook,			bool,			bool)		\
     O(tcache_slow,		tcache_slow_t,		tcache_slow_t)	\
+    O(shard_picker,		shard_picker_t,		shard_picker_t)	\
     O(rtree_ctx,		rtree_ctx_t,		rtree_ctx_t)
 
 #define TSD_DATA_SLOW_INITIALIZER					\
@@ -104,6 +106,7 @@ typedef ql_elm(tsd_t) tsd_link_t;
     /* tsd_link */		{NULL},					\
     /* in_hook */		false,					\
     /* tcache_slow */		TCACHE_SLOW_ZERO_INITIALIZER,		\
+    /* shard_picker */		{0},					\
     /* rtree_ctx */		RTREE_CTX_ZERO_INITIALIZER,
 
 /*  O(name,			type,			nullable type) */
