@@ -51,11 +51,18 @@ void arena_destroy(tsd_t *tsd, arena_t *arena);
 void arena_cache_bin_fill_small(tsdn_t *tsdn, arena_t *arena,
     cache_bin_t *cache_bin, cache_bin_info_t *cache_bin_info, szind_t binind,
     const unsigned nfill);
-
 void *arena_malloc_hard(tsdn_t *tsdn, arena_t *arena, size_t size,
     szind_t ind, bool zero);
 void *arena_palloc(tsdn_t *tsdn, arena_t *arena, size_t usize,
     size_t alignment, bool zero, tcache_t *tcache);
+
+void arena_cache_bin_flush_small(tsd_t *tsd, cache_bin_t *cache_bin,
+    cache_bin_info_t *cache_bin_info, szind_t szind, unsigned rem,
+    arena_t *stats_arena);
+void arena_cache_bin_flush_large(tsd_t *tsd, cache_bin_t *cache_bin,
+    cache_bin_info_t *cache_bin_info, szind_t szind, unsigned rem,
+    arena_t *stats_arena);
+
 void arena_prof_promote(tsdn_t *tsdn, void *ptr, size_t usize);
 void arena_dalloc_promoted(tsdn_t *tsdn, void *ptr, tcache_t *tcache,
     bool slow_path);
