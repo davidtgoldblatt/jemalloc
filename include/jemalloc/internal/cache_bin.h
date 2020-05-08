@@ -403,6 +403,36 @@ cache_bin_finish_flush(cache_bin_t *bin, cache_bin_info_t *info,
 }
 
 /*
+ * Tries to move n items from src to dst.  The items are chosen to be the ones
+ * *least* desirable in src to be used for an allocation (and will be the first
+ * ones returned by subsequent calls to dst).
+ *
+ * dst must contain enough free space to hold the items.
+ */
+static inline void
+cache_bin_to_cache_bin_flush(cache_bin_t *dst, cache_bin_info_t *dst_info,
+    cache_bin_t *src, cache_bin_info_t *src_info, cache_bin_sz_t n) {
+	assert(dst_info->ncached_max - cache_bin_ncached_get(dst, dst_info)
+	    >= n);
+	assert(cache_bin_ncached_get(src, src_info) >= n);
+	unsigned rem = cache_bin_ncached_get(src, src_info) - n;
+	void **src_end = cache_bin_empty_position_get(src, src_info);
+	void **src_begin = src_end - n;
+	dst->stack_head -= n;
+	cache_bin_assert_earlier(dst, dst->low_bits_full,
+	    (uint16_t)(uintptr_t)dst->stack_head);
+
+	memcpy(dst->stack_head, src_begin, n * sizeof(void *));
+	memmove(src->stack_head + n, src->stack_head, rem * sizeof(void *));
+	src->stack_head = src->stack_head + n;
+
+	if (cache_bin_ncached_get(src, src_info)
+	    < cache_bin_low_water_get_internal(src, src_info)) {
+		src->low_bits_low_water = (uint16_t)(uintptr_t)src->stack_head;
+	}
+}
+
+/*
  * Initialize a cache_bin_info to represent up to the given number of items in
  * the cache_bins it is associated with.
  */

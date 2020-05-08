@@ -211,7 +211,121 @@ TEST_BEGIN(test_cache_bin) {
 }
 TEST_END
 
+TEST_BEGIN(test_bin_to_bin_flush) {
+	const size_t src_nslots  = 100;
+	const size_t dst_nslots = 400;
+
+	bool success;
+	void *ptr;
+
+	void *src_to_free;
+	cache_bin_t src;
+	cache_bin_info_t src_info;
+	cache_bin_create(&src, &src_info, &src_to_free, src_nslots);
+
+	void *dst_to_free;
+	cache_bin_t dst;
+	cache_bin_info_t dst_info;
+	cache_bin_create(&dst, &dst_info, &dst_to_free, dst_nslots);
+
+	void **ptrs = calloc(src_nslots, sizeof(void *));
+
+	/* An empty flush. */
+	cache_bin_to_cache_bin_flush(&dst, &dst_info, &src, &src_info, 0);
+
+	/* Partially fill to half-full, then flush to a quarter-full. */
+	for (size_t i = 0; i < src_nslots / 2; i++) {
+		success = cache_bin_dalloc_easy(&src, &ptrs[i]);
+		assert_true(success, "");
+	}
+	cache_bin_low_water_set(&src);
+
+	/* Actually do the flush. */
+	cache_bin_to_cache_bin_flush(&dst, &dst_info, &src, &src_info,
+	    src_nslots / 4);
+
+	expect_true(cache_bin_low_water_get(&src, &src_info) == src_nslots / 4,
+	    "Flushing should have changed low water");
+	expect_true(cache_bin_ncached_get(&src, &src_info) == src_nslots / 4,
+	    "");
+	expect_true(cache_bin_ncached_get(&dst, &dst_info) == src_nslots / 4,
+	    "");
+	/* Src should return the last n/4 elements added, in reverse order. */
+	for (size_t i = 0; i < src_nslots / 4; i++) {
+		ptr = cache_bin_alloc_easy(&src, &success);
+		expect_false(success, "We should be at the low water mark.");
+		ptr = cache_bin_alloc(&src, &success);
+		expect_true(success, "");
+		expect_ptr_eq(ptr, &ptrs[src_nslots / 2 - i - 1],
+		    "Should pop in reverse order added");
+	}
+	/* Dst should return the first n/4 elements added, in reverse order. */
+	for (size_t i = 0; i < src_nslots / 4; i++) {
+		ptr = cache_bin_alloc(&dst, &success);
+		expect_true(success, "");
+		expect_ptr_eq(ptr, &ptrs[src_nslots / 4 - i - 1],
+		    "Should pop in reverse order added");
+	}
+
+	expect_true(cache_bin_ncached_get(&src, &src_info) == 0, "");
+	expect_true(cache_bin_ncached_get(&dst, &dst_info) == 0, "");
+
+	/*
+	 * Let's try again, but then flush to empty (i.e. do two flushes of half
+	 * the original size).
+	 */
+	for (size_t i = 0; i < src_nslots / 2; i++) {
+		success = cache_bin_dalloc_easy(&src, &ptrs[i]);
+		assert_true(success, "");
+	}
+	cache_bin_low_water_set(&src);
+
+	cache_bin_to_cache_bin_flush(&dst, &dst_info, &src, &src_info,
+	    src_nslots / 4);
+
+	expect_true(cache_bin_low_water_get(&src, &src_info) == src_nslots / 4,
+	    "Flushing should have changed low water");
+	expect_true(cache_bin_ncached_get(&src, &src_info) == src_nslots / 4,
+	    "");
+	expect_true(cache_bin_ncached_get(&dst, &dst_info) == src_nslots / 4,
+	    "");
+	/* Now, flush the other half. */
+	cache_bin_to_cache_bin_flush(&dst, &dst_info, &src, &src_info,
+	    src_nslots / 4);
+	expect_true(cache_bin_low_water_get(&src, &src_info) == 0,
+	    "Flushing should have changed low water");
+	expect_true(cache_bin_ncached_get(&src, &src_info) == 0, "");
+	expect_true(cache_bin_ncached_get(&dst, &dst_info) == src_nslots / 2,
+	    "");
+	/* Now dst should have the pointers, and pop them in reverse order. */
+	for (size_t i = 0; i < src_nslots / 2; i++) {
+		ptr = cache_bin_alloc(&dst, &success);
+		assert_true(success, "");
+		expect_ptr_eq(ptr, &ptrs[src_nslots / 2 - i - 1], "");
+	}
+
+	/* Let's flush a whole, full bin, too. */
+	for (size_t i = 0; i < src_nslots; i++) {
+		success = cache_bin_dalloc_easy(&src, &ptrs[i]);
+		assert_true(success, "");
+	}
+	cache_bin_low_water_set(&src);
+
+	cache_bin_to_cache_bin_flush(&dst, &dst_info, &src, &src_info,
+	    src_nslots);
+	expect_true(cache_bin_low_water_get(&src, &src_info) == 0, "");
+	expect_true(cache_bin_ncached_get(&src, &src_info) == 0, "");
+	expect_true(cache_bin_ncached_get(&dst, &dst_info) == src_nslots, "");
+
+	free(src_to_free);
+	free(dst_to_free);
+	free(ptrs);
+}
+TEST_END
+
 int
 main(void) {
-	return test(test_cache_bin);
+	return test(
+	    test_cache_bin,
+	    test_bin_to_bin_flush);
 }
