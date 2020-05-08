@@ -1,6 +1,27 @@
 #include "test/jemalloc_test.h"
 
 static void
+cache_bin_create(cache_bin_t *bin, cache_bin_info_t *info, void **to_free,
+    size_t nslots) {
+	cache_bin_info_init(info, nslots);
+
+	cache_bin_alloc_info_t alloc_info;
+	cache_bin_alloc_info_init(&alloc_info);
+	cache_bin_alloc_info_update(&alloc_info, info);
+	*to_free = mallocx(alloc_info.size,
+	    MALLOCX_ALIGN(alloc_info.alignment));
+	assert_ptr_not_null(*to_free, "Unexpected mallocx failure");
+
+	size_t cur_offset = 0;
+	cache_bin_preincrement(*to_free, &cur_offset);
+	cache_bin_init(bin, info, *to_free, &cur_offset);
+	cache_bin_postincrement(*to_free, &cur_offset);
+
+	assert_zu_eq(cur_offset, alloc_info.size,
+	    "Should use all requested memory");
+}
+
+static void
 do_fill_test(cache_bin_t *bin, cache_bin_info_t *info, void **ptrs,
     cache_bin_sz_t ncached_max, cache_bin_sz_t nfill_attempt,
     cache_bin_sz_t nfill_succeed) {
@@ -53,27 +74,14 @@ do_flush_test(cache_bin_t *bin, cache_bin_info_t *info, void **ptrs,
 }
 
 TEST_BEGIN(test_cache_bin) {
+	const size_t nslots = 100;
 	bool success;
 	void *ptr;
 
+	void *to_free = NULL;
 	cache_bin_t bin;
 	cache_bin_info_t info;
-	cache_bin_info_init(&info, TCACHE_NSLOTS_SMALL_MAX);
-
-	cache_bin_alloc_info_t alloc_info;
-	cache_bin_alloc_info_init(&alloc_info);
-	cache_bin_alloc_info_update(&alloc_info, &info);
-	void *mem = mallocx(alloc_info.size,
-	    MALLOCX_ALIGN(alloc_info.alignment));
-	assert_ptr_not_null(mem, "Unexpected mallocx failure");
-
-	size_t cur_offset = 0;
-	cache_bin_preincrement(mem, &cur_offset);
-	cache_bin_init(&bin, &info, mem, &cur_offset);
-	cache_bin_postincrement(mem, &cur_offset);
-
-	assert_zu_eq(cur_offset, alloc_info.size,
-	    "Should use all requested memory");
+	cache_bin_create(&bin, &info, &to_free, nslots);
 
 	/* Initialize to empty; should then have 0 elements. */
 	cache_bin_sz_t ncached_max = cache_bin_info_ncached_max(&info);
@@ -197,6 +205,9 @@ TEST_BEGIN(test_cache_bin) {
 	do_flush_test(&bin, &info, ptrs, ncached_max / 2, ncached_max / 2);
 	do_flush_test(&bin, &info, ptrs, ncached_max / 2, ncached_max / 4);
 	do_flush_test(&bin, &info, ptrs, ncached_max / 2, 0);
+
+	free(to_free);
+	free(ptrs);
 }
 TEST_END
 
