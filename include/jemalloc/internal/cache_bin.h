@@ -433,6 +433,41 @@ cache_bin_to_cache_bin_flush(cache_bin_t *dst, cache_bin_info_t *dst_info,
 }
 
 /*
+* Tries to move n items from src to dst.  The items are chosen to be the ones
+* *most* desirable in src to be used for an allocation, and they are regarded
+* as less desirable as allocations than any currently in dst.
+*
+* Unlike the arena's cache-bin filling operations, dst need not be empty.  This
+* can be useful in intermediate caching layers.
+*
+* src must have at least n items, and dst must have space for n additional
+* items.
+*/
+static inline void
+cache_bin_to_cache_bin_fill(cache_bin_t *dst, cache_bin_info_t *dst_info,
+    cache_bin_t *src, cache_bin_info_t *src_info, cache_bin_sz_t n) {
+	assert(cache_bin_ncached_get(dst, dst_info) + n
+	    <= dst_info->ncached_max);
+	assert(cache_bin_ncached_get(src, src_info) >= n);
+
+	size_t old_dst_count = cache_bin_ncached_get(dst, dst_info);
+	void **old_dst_stack_head = dst->stack_head;
+
+	dst->stack_head -= n;
+	memmove(dst->stack_head, old_dst_stack_head,
+	    old_dst_count * sizeof(void *));
+
+	memcpy(dst->stack_head + old_dst_count, src->stack_head,
+	    n * sizeof(void *));
+	src->stack_head += n;
+
+	if (cache_bin_ncached_get(src, src_info)
+	    < cache_bin_low_water_get_internal(src, src_info)) {
+		src->low_bits_low_water = (uint16_t)(uintptr_t)src->stack_head;
+	}
+}
+
+/*
  * Initialize a cache_bin_info to represent up to the given number of items in
  * the cache_bins it is associated with.
  */
