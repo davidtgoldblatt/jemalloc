@@ -82,7 +82,7 @@ tcache_event(tsd_t *tsd) {
 		 */
 		if (is_small) {
 			assert(!tcache_slow->bin_refilled[binind]);
-			tcache_bin_flush_small(tsd, tcache, cache_bin, binind,
+			tcache_bin_flush(tsd, tcache, cache_bin, binind,
 			    ncached - low_water + (low_water >> 2));
 			/*
 			 * Reduce fill count by 2X.  Limit lg_fill_div such that
@@ -94,7 +94,7 @@ tcache_event(tsd_t *tsd) {
 				tcache_slow->lg_fill_div[binind]++;
 			}
 		} else {
-			tcache_bin_flush_large(tsd, tcache, cache_bin, binind,
+			tcache_bin_flush(tsd, tcache, cache_bin, binind,
 			     ncached - low_water + (low_water >> 2));
 		}
 	} else if (is_small && tcache_slow->bin_refilled[binind]) {
@@ -147,20 +147,11 @@ tcache_alloc_small_hard(tsdn_t *tsdn, arena_t *arena,
 }
 
 void
-tcache_bin_flush_small(tsd_t *tsd, tcache_t *tcache, cache_bin_t *cache_bin,
-    szind_t binind, unsigned rem) {
+tcache_bin_flush(tsd_t *tsd, tcache_t *tcache, cache_bin_t *cache_bin,
+    szind_t szind, unsigned rem) {
 	arena_t *stats_arena = tcache->tcache_slow->arena;
-	cache_bin_info_t *cache_bin_info = &tcache_bin_info[binind];
-	arena_cache_bin_flush_small(tsd, cache_bin, cache_bin_info, binind, rem,
-	    stats_arena);
-}
-
-void
-tcache_bin_flush_large(tsd_t *tsd, tcache_t *tcache, cache_bin_t *cache_bin,
-    szind_t binind, unsigned rem) {
-	arena_t *stats_arena = tcache->tcache_slow->arena;
-	cache_bin_info_t *cache_bin_info = &tcache_bin_info[binind];
-	arena_cache_bin_flush_large(tsd, cache_bin, cache_bin_info, binind, rem,
+	cache_bin_info_t *cache_bin_info = &tcache_bin_info[szind];
+	arena_cache_bin_flush(tsd, cache_bin, cache_bin_info, szind, rem,
 	    stats_arena);
 }
 
@@ -346,11 +337,7 @@ tcache_flush_cache(tsd_t *tsd, tcache_t *tcache) {
 
 	for (unsigned i = 0; i < nhbins; i++) {
 		cache_bin_t *cache_bin = &tcache->bins[i];
-		if (i < SC_NBINS) {
-			tcache_bin_flush_small(tsd, tcache, cache_bin, i, 0);
-		} else {
-			tcache_bin_flush_large(tsd, tcache, cache_bin, i, 0);
-		}
+		tcache_bin_flush(tsd, tcache, cache_bin, i, 0);
 		if (config_stats) {
 			assert(cache_bin->tstats.nrequests == 0);
 		}

@@ -1278,21 +1278,49 @@ arena_cache_bin_flush_impl(tsd_t *tsd, cache_bin_t *cache_bin,
 	cache_bin_finish_flush(cache_bin, cache_bin_info, &ptrs, ncached - rem);
 }
 
-
-void
-arena_cache_bin_flush_small(tsd_t *tsd, cache_bin_t *cache_bin,
+/*
+ * If we're not careful, we can run out of stack by doing large flushes on small
+ * stacks.  We make this function noinline, and have our caller limit the
+ * maximum size, to avoid such a case.
+ */
+JEMALLOC_ATTR(noinline)
+static void
+arena_cache_bin_flush_stack_aware(tsd_t *tsd, cache_bin_t *cache_bin,
     cache_bin_info_t *cache_bin_info, szind_t szind, unsigned rem,
     arena_t *stats_arena) {
-	arena_cache_bin_flush_impl(tsd, cache_bin, cache_bin_info, szind, rem,
-	    stats_arena, /* small */ true);
+	/*
+	 * We repeat the call twice (instead of just passing 'szind < SC_NBINS'
+	 * as the last parameter) to compile away all the logic that depends on
+	 * the value of small -- the implementation is force-inlined.
+	 */
+	if (szind < SC_NBINS) {
+		arena_cache_bin_flush_impl(tsd, cache_bin, cache_bin_info,
+		    szind, rem, stats_arena, /* small */ true);
+	} else {
+		arena_cache_bin_flush_impl(tsd, cache_bin, cache_bin_info,
+		    szind, rem, stats_arena, /* small */ false);
+	}
 }
 
 void
-arena_cache_bin_flush_large(tsd_t *tsd, cache_bin_t *cache_bin,
+arena_cache_bin_flush(tsd_t *tsd, cache_bin_t *cache_bin,
     cache_bin_info_t *cache_bin_info, szind_t szind, unsigned rem,
     arena_t *stats_arena) {
-	arena_cache_bin_flush_impl(tsd, cache_bin, cache_bin_info, szind, rem,
-	    stats_arena, /* small */ false);
+	unsigned cur = cache_bin_ncached_get(cache_bin, cache_bin_info);
+	assert(cur >= rem);
+	unsigned nflush = cur - rem;
+	/*
+	 * We need to enter the loop once for stats purposes, even if nflush is
+	 * 0; hence the do-while.
+	 */
+	do {
+		unsigned nflush_stack_aware = (nflush > 200 ? 200 : nflush);
+		arena_cache_bin_flush_stack_aware(tsd, cache_bin,
+		    cache_bin_info, szind, cur - nflush_stack_aware,
+		    stats_arena);
+		cur -= nflush_stack_aware;
+		nflush -= nflush_stack_aware;
+	} while (nflush > 0);
 }
 
 void
