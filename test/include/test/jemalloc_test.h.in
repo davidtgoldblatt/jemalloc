@@ -23,7 +23,7 @@ extern "C" {
 #  include <pthread.h>
 #endif
 
-#include "test/jemalloc_test_defs.h"
+#include "test/test_defs.h"
 
 #if defined(JEMALLOC_OSATOMIC)
 #  include <libkern/OSAtomic.h>
@@ -43,7 +43,7 @@ extern "C" {
 #ifdef JEMALLOC_UNIT_TEST
 #  define JEMALLOC_JET
 #  define JEMALLOC_MANGLE
-#  include "jemalloc/internal/jemalloc_preamble.h"
+#  include "jemalloc/internal/preamble.h"
 #  include "jemalloc/internal/jemalloc_internal_includes.h"
 
 /******************************************************************************/
@@ -68,7 +68,6 @@ static const bool config_debug =
     ;
 
 #  define JEMALLOC_N(n) @private_namespace@##n
-#  include "jemalloc/internal/private_namespace.h"
 #  include "jemalloc/internal/test_hooks.h"
 
 /* Hermetic headers. */

@@ -1,4 +1,4 @@
-#include "jemalloc/internal/jemalloc_preamble.h"
+#include "jemalloc/internal/preamble.h"
 
 /*
  * The hooks are a little bit screwy -- they're not genuinely exported in the

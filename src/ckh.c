@@ -35,7 +35,7 @@
  *
  ******************************************************************************/
 #define JEMALLOC_CKH_C_
-#include "jemalloc/internal/jemalloc_preamble.h"
+#include "jemalloc/internal/preamble.h"
 
 #include "jemalloc/internal/ckh.h"
 

@@ -1,4 +1,4 @@
-#include "jemalloc/internal/jemalloc_preamble.h"
+#include "jemalloc/internal/preamble.h"
 #include "jemalloc/internal/jemalloc_internal_includes.h"
 
 ph_gen(, edata_avail_, edata_tree_t, edata_t, ph_link,

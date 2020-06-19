@@ -1,4 +1,4 @@
-#include "jemalloc/internal/jemalloc_preamble.h"
+#include "jemalloc/internal/preamble.h"
 
 #include "jemalloc/internal/div.h"
 
