@@ -809,6 +809,10 @@ extent_can_coalesce(ecache_t *ecache, const edata_t *inner,
 		return false;
 	}
 
+	if (edata_pai_get(inner) != edata_pai_get(outer)) {
+		return false;
+	}
+
 	assert(edata_state_get(inner) == extent_state_active);
 	if (edata_state_get(outer) != ecache->state) {
 		return false;
