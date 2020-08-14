@@ -133,6 +133,10 @@ unsigned	ncpus;
 
 /* Protects arenas initialization. */
 malloc_mutex_t arenas_lock;
+
+/* The global hpa, and whether it's on. */
+bool opt_hpa;
+
 /*
  * Arenas that are used to service external requests.  Not all elements of the
  * arenas array are necessarily used; arenas are created lazily as needed.
@@ -1457,6 +1461,7 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 					   opt_max_background_threads,
 					   CONF_CHECK_MIN, CONF_CHECK_MAX,
 					   true);
+			CONF_HANDLE_BOOL(opt_hpa, "hpa")
 			if (CONF_MATCH("slab_sizes")) {
 				bool err;
 				const char *slab_size_segment_cur = v;
@@ -1737,6 +1742,24 @@ malloc_init_hard_a0_locked() {
 		return true;
 	}
 	a0 = arena_get(TSDN_NULL, 0, false);
+
+	if (opt_hpa) {
+		/*
+		 * The global HPA uses the edata cache from a0, and so needs to
+		 * be initialized specially, after a0 is.  The arena init code
+		 * handles this case specially, and does not turn on the HPA for
+		 * a0 when opt_hpa is true.  This lets us do global HPA
+		 * initialization against a valid a0.
+		 */
+		if (hpa_init(&arena_hpa_global, b0get(), &arena_emap_global,
+		    &a0->pa_shard.edata_cache)) {
+			return true;
+		}
+		if (pa_shard_enable_hpa(&a0->pa_shard, &arena_hpa_global)) {
+			return true;
+		}
+	}
+
 	malloc_init_state = malloc_init_a0_initialized;
 
 	return false;
@@ -4179,6 +4202,10 @@ _malloc_prefork(void)
 				}
 			}
 		}
+		if (i == 3) {
+			hpa_prefork3(tsd_tsdn(tsd), &arena_hpa_global);
+		}
+
 	}
 	prof_prefork1(tsd_tsdn(tsd));
 	stats_prefork(tsd_tsdn(tsd));
@@ -4217,6 +4244,7 @@ _malloc_postfork(void)
 			arena_postfork_parent(tsd_tsdn(tsd), arena);
 		}
 	}
+	hpa_postfork_parent(tsd_tsdn(tsd), &arena_hpa_global);
 	prof_postfork_parent(tsd_tsdn(tsd));
 	if (have_background_thread) {
 		background_thread_postfork_parent(tsd_tsdn(tsd));
@@ -4247,6 +4275,7 @@ jemalloc_postfork_child(void) {
 			arena_postfork_child(tsd_tsdn(tsd), arena);
 		}
 	}
+	hpa_postfork_child(tsd_tsdn(tsd), &arena_hpa_global);
 	prof_postfork_child(tsd_tsdn(tsd));
 	if (have_background_thread) {
 		background_thread_postfork_child(tsd_tsdn(tsd));
