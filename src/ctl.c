@@ -212,6 +212,13 @@ CTL_PROTO(stats_arenas_i_extents_j_dirty_bytes)
 CTL_PROTO(stats_arenas_i_extents_j_muzzy_bytes)
 CTL_PROTO(stats_arenas_i_extents_j_retained_bytes)
 INDEX_PROTO(stats_arenas_i_extents_j)
+CTL_PROTO(stats_arenas_i_hpa_shard_nonfull_slabs_j_npageslabs)
+CTL_PROTO(stats_arenas_i_hpa_shard_nonfull_slabs_j_nactive)
+CTL_PROTO(stats_arenas_i_hpa_shard_nonfull_slabs_j_ninactive)
+INDEX_PROTO(stats_arenas_i_hpa_shard_nonfull_slabs_j)
+CTL_PROTO(stats_arenas_i_hpa_shard_full_slabs_npageslabs)
+CTL_PROTO(stats_arenas_i_hpa_shard_full_slabs_nactive)
+CTL_PROTO(stats_arenas_i_hpa_shard_full_slabs_ninactive)
 CTL_PROTO(stats_arenas_i_nthreads)
 CTL_PROTO(stats_arenas_i_uptime)
 CTL_PROTO(stats_arenas_i_dss)
@@ -576,6 +583,41 @@ MUTEX_PROF_ARENA_MUTEXES
 #undef OP
 };
 
+static const ctl_named_node_t stats_arenas_i_hpa_shard_full_slabs_node[] = {
+	{NAME("npageslabs"),
+		CTL(stats_arenas_i_hpa_shard_full_slabs_npageslabs)},
+	{NAME("nactive"),
+		CTL(stats_arenas_i_hpa_shard_full_slabs_nactive)},
+	{NAME("ninactive"),
+		CTL(stats_arenas_i_hpa_shard_full_slabs_ninactive)}
+};
+
+static const ctl_named_node_t stats_arenas_i_hpa_shard_nonfull_slabs_j_node[] = {
+	{NAME("npageslabs"),
+		CTL(stats_arenas_i_hpa_shard_nonfull_slabs_j_npageslabs)},
+	{NAME("nactive"),
+		CTL(stats_arenas_i_hpa_shard_nonfull_slabs_j_nactive)},
+	{NAME("ninactive"),
+		CTL(stats_arenas_i_hpa_shard_nonfull_slabs_j_ninactive)}
+};
+
+static const ctl_named_node_t super_stats_arenas_i_hpa_shard_nonfull_slabs_j_node[] = {
+	{NAME(""),
+		CHILD(named, stats_arenas_i_hpa_shard_nonfull_slabs_j)}
+};
+
+static const ctl_indexed_node_t stats_arenas_i_hpa_shard_nonfull_slabs_node[] =
+{
+	{INDEX(stats_arenas_i_hpa_shard_nonfull_slabs_j)}
+};
+
+static const ctl_named_node_t stats_arenas_i_hpa_shard_node[] = {
+	{NAME("full_slabs"),	CHILD(named,
+	    stats_arenas_i_hpa_shard_full_slabs)},
+	{NAME("nonfull_slabs"),	CHILD(indexed,
+	    stats_arenas_i_hpa_shard_nonfull_slabs)}
+};
+
 static const ctl_named_node_t stats_arenas_i_node[] = {
 	{NAME("nthreads"),	CTL(stats_arenas_i_nthreads)},
 	{NAME("uptime"),	CTL(stats_arenas_i_uptime)},
@@ -605,7 +647,8 @@ static const ctl_named_node_t stats_arenas_i_node[] = {
 	{NAME("bins"),		CHILD(indexed, stats_arenas_i_bins)},
 	{NAME("lextents"),	CHILD(indexed, stats_arenas_i_lextents)},
 	{NAME("extents"),	CHILD(indexed, stats_arenas_i_extents)},
-	{NAME("mutexes"),	CHILD(named, stats_arenas_i_mutexes)}
+	{NAME("mutexes"),	CHILD(named, stats_arenas_i_mutexes)},
+	{NAME("hpa_shard"),	CHILD(named, stats_arenas_i_hpa_shard)}
 };
 static const ctl_named_node_t super_stats_arenas_i_node[] = {
 	{NAME(""),		CHILD(named, stats_arenas_i)}
@@ -836,6 +879,8 @@ ctl_arena_clear(ctl_arena_t *ctl_arena) {
 		    sizeof(arena_stats_large_t));
 		memset(ctl_arena->astats->estats, 0, SC_NPSIZES *
 		    sizeof(pac_estats_t));
+		memset(&ctl_arena->astats->hpastats, 0,
+		    sizeof(hpa_shard_stats_t));
 	}
 }
 
@@ -849,7 +894,8 @@ ctl_arena_stats_amerge(tsdn_t *tsdn, ctl_arena_t *ctl_arena, arena_t *arena) {
 		    &ctl_arena->muzzy_decay_ms, &ctl_arena->pactive,
 		    &ctl_arena->pdirty, &ctl_arena->pmuzzy,
 		    &ctl_arena->astats->astats, ctl_arena->astats->bstats,
-		    ctl_arena->astats->lstats, ctl_arena->astats->estats);
+		    ctl_arena->astats->lstats, ctl_arena->astats->estats,
+		    &ctl_arena->astats->hpastats);
 
 		for (i = 0; i < SC_NBINS; i++) {
 			bin_stats_t *bstats =
@@ -1025,6 +1071,16 @@ MUTEX_PROF_ARENA_MUTEXES
 			sdstats->estats[i].retained_bytes
 			    += astats->estats[i].retained_bytes;
 		}
+
+		/* Merge HPA stats. */
+		psset_bin_stats_accum(&sdstats->hpastats.psset_fullstats,
+		    &astats->hpastats.psset_fullstats);
+		for (pszind_t i = 0; i < PSSET_NPSIZES; i++) {
+			psset_bin_stats_accum(
+			    &sdstats->hpastats.psset_stats[i],
+			    &astats->hpastats.psset_stats[i]);
+		}
+
 	}
 }
 
@@ -3230,6 +3286,29 @@ stats_arenas_i_extents_j_index(tsdn_t *tsdn, const size_t *mib,
 		return NULL;
 	}
 	return super_stats_arenas_i_extents_j_node;
+}
+
+CTL_RO_CGEN(config_stats, stats_arenas_i_hpa_shard_full_slabs_npageslabs,
+    arenas_i(mib[2])->astats->hpastats.psset_fullstats.npageslabs, size_t);
+CTL_RO_CGEN(config_stats, stats_arenas_i_hpa_shard_full_slabs_nactive,
+    arenas_i(mib[2])->astats->hpastats.psset_fullstats.nactive, size_t);
+CTL_RO_CGEN(config_stats, stats_arenas_i_hpa_shard_full_slabs_ninactive,
+    arenas_i(mib[2])->astats->hpastats.psset_fullstats.ninactive, size_t);
+
+CTL_RO_CGEN(config_stats, stats_arenas_i_hpa_shard_nonfull_slabs_j_npageslabs,
+    arenas_i(mib[2])->astats->hpastats.psset_stats[mib[5]].npageslabs, size_t);
+CTL_RO_CGEN(config_stats, stats_arenas_i_hpa_shard_nonfull_slabs_j_nactive,
+    arenas_i(mib[2])->astats->hpastats.psset_stats[mib[5]].nactive, size_t);
+CTL_RO_CGEN(config_stats, stats_arenas_i_hpa_shard_nonfull_slabs_j_ninactive,
+    arenas_i(mib[2])->astats->hpastats.psset_stats[mib[5]].ninactive, size_t);
+
+static const ctl_named_node_t *
+stats_arenas_i_hpa_shard_nonfull_slabs_j_index(tsdn_t *tsdn, const size_t *mib,
+    size_t miblen, size_t j) {
+	if (j >= PSSET_NPSIZES) {
+		return NULL;
+	}
+	return super_stats_arenas_i_hpa_shard_nonfull_slabs_j_node;
 }
 
 static bool

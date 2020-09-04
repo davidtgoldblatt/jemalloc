@@ -217,7 +217,6 @@ hpa_alloc_psset(tsdn_t *tsdn, hpa_shard_t *shard, size_t size) {
 static edata_t *
 hpa_alloc(tsdn_t *tsdn, pai_t *self, size_t size,
     size_t alignment, bool zero) {
-
 	assert((size & PAGE_MASK) == 0);
 	/* We don't handle alignment or zeroing for now. */
 	if (alignment > PAGE) {

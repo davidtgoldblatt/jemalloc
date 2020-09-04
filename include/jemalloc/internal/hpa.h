@@ -17,6 +17,13 @@ struct hpa_s {
 	geom_grow_t geom_grow;
 };
 
+/* Used only by CTL; not actually stored here (i.e., all derived). */
+typedef struct hpa_shard_stats_s hpa_shard_stats_t;
+struct hpa_shard_stats_s {
+	psset_bin_stats_t psset_fullstats;
+	psset_bin_stats_t psset_stats[PSSET_NPSIZES];
+};
+
 typedef struct hpa_shard_s hpa_shard_t;
 struct hpa_shard_s {
 	/*
