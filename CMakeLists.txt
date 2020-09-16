@@ -3,6 +3,12 @@
 # TODO: we hardcode in that we find threads, -ldl (via ${CMAKE_DL_LIBS})
 # TODO: kill configure_file of the public jemalloc.h
 # TODO: figure out smallocx thing
+# TODO: jemalloc_compiler_flags_add in CompilerFlags.cmake is better
+#       implemented in terms of check_c_compiler_flag
+# TODO: implicit fallthrough is detected, but old version adds it as a warning.
+# Old build system hardcodes USE_CXX_THROW; really, it should use a compile
+# test. But we do what the old thing did for now.
+# TODO: we didn't define
 
 cmake_minimum_required(VERSION 3.2 FATAL_ERROR)
 
@@ -24,23 +30,85 @@ project(jemalloc
   LANGUAGES ${langs}
 )
 
+include(CompilerFeatures)
+include(CompilerFlags)
+include(CheckIncludeFile)
+include(CheckSymbolExists)
+
 find_package(Threads REQUIRED)
 
 set(JEMALLOC_PREFIX 0)
 set(JEMALLOC_CPREFIX 0)
 
 # Stuff in jemalloc/defs.h
-set(JEMALLOC_HAVE_ATTR 1)
-set(JEMALLOC_HAVE_ATTR_ALLOC_SIZE 1)
-set(JEMALLOC_HAVE_ATTR_FORMAT_ARG 1)
-set(JEMALLOC_HAVE_ATTR_FORMAT_GNU_PRINTF 1)
-set(JEMALLOC_HAVE_ATTR_FORMAT_PRINTF 1)
-set(JEMALLOC_HAVE_ATTR_FALLTHROUGH 1)
-set(JEMALLOC_OVERRIDE_MEMALIGN 1)
-set(JEMALLOC_OVERRIDE_VALLOC 1)
-set(JEMALLOC_USABLE_SIZE_CONST 1)
-set(JEMALLOC_USE_CXX_THROW 1)
-set(LG_SIZEOF_PTR 3)
+jemalloc_compilable_nowarning(
+  "static __attribute__((unused)) void foo(void){}"
+  ""
+  JEMALLOC_HAVE_ATTR
+)
+jemalloc_compilable_nowarning(
+  "#include <stdlib.h>"
+  "void *foo(size_t size) __attribute__((alloc_size(1)));"
+  JEMALLOC_HAVE_ATTR_ALLOC_SIZE
+)
+jemalloc_compilable_nowarning(
+  "#include <stdlib.h>"
+  "void *foo(const char *format, ...) __attribute__((format(printf, 1, 2)));"
+  JEMALLOC_HAVE_ATTR_FORMAT_PRINTF)
+jemalloc_compilable_nowarning(
+  "#include <stdlib.h>"
+  "void *foo(const char *format, ...)
+       __attribute__((format(gnu_printf, 1, 2)));"
+  JEMALLOC_HAVE_ATTR_FORMAT_GNU_PRINTF
+)
+jemalloc_compilable_nowarning(
+  "#include <stdlib.h>"
+  "const char * __attribute__((__format_arg__(1))) foo(const char *format);"
+  JEMALLOC_HAVE_ATTR_FORMAT_ARG
+)
+check_c_compiler_flag(-Wimplicit-fallthrough JEMALLOC_WIMPLICIT_FALLTHROUGH)
+if(JEMALLOC_WIMPLICIT_FALLTHROUGH)
+  jemalloc_compilable_nowarning(
+    "#if !__has_attribute(fallthrough)
+     #error foo
+     #endif"
+    "int x = 0;
+    switch (x) {
+    case 0: __attribute__((__fallthrough__));
+    case 1: return 1;
+    }"
+   JEMALLOC_HAVE_ATTR_FALLTHROUGH)
+endif()
+
+jemalloc_check_func(memalign JEMALLOC_OVERRIDE_MEMALIGN)
+jemalloc_check_func(valloc JEMALLOC_OVERRIDE_VALLOC)
+
+set(JEMALLOC_USABLE_SIZE_CONST "const")
+if(JEMALLOC_HAVE_MALLOC_H)
+  jemalloc_compilable(
+    "#include <malloc.h>
+     #include <stddef.h>
+     size_t malloc_usable_size(const void *ptr);"
+    ""
+    JEMALLOC_USABLE_SIZE_CONST_COMPILES)
+  if(NOT JEMALLOC_USABLE_SIZE_CONST_COMPILES)
+    set(JEMALLOC_USABLE_SIZE_CONST "")
+  endif()
+else()
+endif()
+
+if(CMAKE_SYSTEM_NAME MATCHES "kFreeBSD" OR CMAKE_SYSTEM_NAME MATCHES "Linux")
+  set(JEMALLOC_USE_CXX_THROW 1)
+endif()
+
+if(CMAKE_SIZEOF_VOID_P EQUAL 4)
+  set(LG_SIZEOF_PTR 2)
+elseif(CMAKE_SIZEOF_VOID_P EQUAL 8)
+  set(LG_SIZEOF_PTR 3)
+else()
+  message(FATAL_ERROR
+    "Got extremely surprising pointer size ${CMAKE_SIZEOF_VOID_P}")
+endif()
 
 # Stuff in macros.h
 # Obviously, need to do a better job detecting this stuff.
@@ -51,95 +119,20 @@ set(jemalloc_version_bugfix 1)
 set(jemalloc_version_nrev 437)
 set(jemalloc_version_gid eacdc8f96c5d511c1b2fb6afa9a4f588c5726af3)
 
-# Stuff in jemalloc/internal/defs.h
-set(JEMALLOC_OVERRIDE___LIBC_CALLOC 1)
-set(JEMALLOC_OVERRIDE___LIBC_FREE 1)
-set(JEMALLOC_OVERRIDE___LIBC_MALLOC 1)
-set(JEMALLOC_OVERRIDE___LIBC_MEMALIGN 1)
-set(JEMALLOC_OVERRIDE___LIBC_REALLOC 1)
-set(JEMALLOC_OVERRIDE___LIBC_VALLOC 1)
-set(JEMALLOC_OVERRIDE___POSIX_MEMALIGN 0)
-set(JEMALLOC_PRIVATE_NAMESPACE ${private_namespace})
-set(CPU_SPINWAIT "__asm__ volatile(\"pause\")")
-set(HAVE_CPU_SPINWAIT 1)
-set(LG_VADDR 48)
-set(JEMALLOC_C11_ATOMICS 1)
-set(JEMALLOC_GCC_ATOMIC_ATOMICS 1)
-set(JEMALLOC_GCC_SYNC_ATOMICS 1)
-set(JEMALLOC_GCC_U8_ATOMIC_ATOMICS 1)
-set(JEMALLOC_HAVE_BUILTIN_CLZ 1)
-set(JEMALLOC_OS_UNFAIR_LOCK 0)
-set(JEMALLOC_USE_SYSCALL 0)
-set(JEMALLOC_HAVE_SECURE_GETENV 1)
-set(JEMALLOC_HAVE_ISSETUGID 0)
-set(JEMALLOC_HAVE_PTHREAD_ATFORK 1)
-set(JEMALLOC_HAVE_PTHREAD_SETNAME_NP 1)
-set(JEMALLOC_HAVE_CLOCK_MONOTONIC_COARSE 1)
-set(JEMALLOC_HAVE_CLOCK_MONOTONIC 1)
-set(JEMALLOC_HAVE_MACH_ABSOLUTE_TIME 0)
-set(JEMALLOC_HAVE_CLOCK_REALTIME 1)
-set(JEMALLOC_MALLOC_THREAD_CLEANUP 0)
-set(JEMALLOC_THREADED_INIT 1)
-set(JEMALLOC_TLS_MODEL "__attribute__((tls_model(\"initial-exec\")))")
+# Stuff in jemalloc/internal/defs.h is stuck into its own file, just since it's
+# much bigger and more complicated than anything else.  Only pull out the
+# options into the main cmake file.
 set(JEMALLOC_DEBUG 0)
 set(JEMALLOC_STATS 1)
+set(JEMALLOC_OPT_SAFETY_CHECKS 0)
 set(JEMALLOC_EXPERIMENTAL_SMALLOCX_API 0)
 set(JEMALLOC_PROF 0)
 set(JEMALLOC_PROF_LIBUNWIND 0)
 set(JEMALLOC_PROF_LIBGCC 0)
 set(JEMALLOC_PROF_GCC 0)
-set(JEMALLOC_DSS 1)
-set(JEMALLOC_FILL 1)
-set(JEMALLOC_UTRACE 0)
-set(JEMALLOC_XMALLOC 0)
-set(JEMALLOC_LAZY_LOCK 0)
-set(LG_QUANTUM 0)
-set(LG_PAGE 12)
-set(LG_HUGEPAGE 21)
-set(JEMALLOC_MAPS_COALESCE 1)
-set(JEMALLOC_RETAIN 1)
-set(JEMALLOC_TLS 1)
-set(JEMALLOC_INTERNAL_UNREACHABLE __builtin_unreachable)
-set(JEMALLOC_INTERNAL_FFSLL __builtin_ffsll)
-set(JEMALLOC_INTERNAL_FFSL __builtin_ffsl)
-set(JEMALLOC_INTERNAL_FFS __builtin_ffs)
-set(JEMALLOC_INTERNAL_POPCOUNTL __builtin_popcountl)
-set(JEMALLOC_INTERNAL_POPCOUNT __builtin_popcount)
-set(JEMALLOC_CACHE_OBLIVIOUS 1)
-set(JEMALLOC_LOG 0)
-set(JEMALLOC_READLINKAT 0)
-set(JEMALLOC_ZONE 0)
-set(JEMALLOC_SYSCTL_VM_OVERCOMMIT 0)
-set(JEMALLOC_PROC_SYS_VM_OVERCOMMIT_MEMORY 1)
-set(JEMALLOC_HAVE_MADVISE 1)
-set(JEMALLOC_HAVE_MADVISE_HUGE 1)
-set(JEMALLOC_PURGE_MADVISE_FREE 1)
-set(JEMALLOC_PURGE_MADVISE_DONTNEED 1)
-set(JEMALLOC_PURGE_MADVISE_DONTNEED_ZEROS 1)
-set(JEMALLOC_DEFINE_MADVISE_FREE 0)
-set(JEMALLOC_MADVISE_DONTDUMP 1)
-set(JEMALLOC_THP 0)
-set(JEMALLOC_HAS_ALLOCA_H 1)
-set(JEMALLOC_HAS_RESTRICT 1)
-set(JEMALLOC_BIG_ENDIAN 0)
-set(LG_SIZEOF_INT 2)
-set(LG_SIZEOF_INT 2)
-set(LG_SIZEOF_LONG 3)
-set(LG_SIZEOF_LONG_LONG 3)
-set(LG_SIZEOF_INTMAX_T 3)
-set(JEMALLOC_GLIBC_MALLOC_HOOK 1)
-set(JEMALLOC_GLIBC_MEMALIGN_HOOK 0)
-set(JEMALLOC_HAVE_PTHREAD 1)
-set(JEMALLOC_HAVE_DLSYM 1)
-set(JEMALLOC_HAVE_PTHREAD_MUTEX_ADAPTIVE_NP 1)
-set(JEMALLOC_HAVE_SCHED_GETCPU 1)
-set(JEMALLOC_HAVE_SCHED_SETAFFINITY 1)
-set(JEMALLOC_BACKGROUND_THREAD 1)
-set(JEMALLOC_EXPORT 0)
-set(JEMALLOC_CONFIG_MALLOC_CONF "\"\"")
-set(JEAMLLOC_IS_MALLOC 1)
-set(JEMALLOC_STRERROR_R_RETURNS_CHAR_WITH_GNU_SOURCE 1)
-set(JEMALLOC_OPT_SAFETY_CHECKS 0)
+set(LG_VADDR "detect" CACHE STRING
+  "Number of significant virtual address bits")
+include(DetectInternalDefs)
 
 #TODO: need to figure out smallocx handling here.
 set(public_syms
@@ -182,8 +175,13 @@ foreach(mangled_sym_pair ${mangling})
   set(SYM_${name} ${mangled_name})
 endforeach()
 
-set(install_suffix "")
-set(private_namespace je_)
+set(JEMALLOC_PRIVATE_NAMESPACE je_ CACHE STRING
+  "Prefix to prepend to all library-private APIs")
+set(private_namespace ${JEMALLOC_PRIVATE_NAMESPACE})
+
+set(JEMALLOC_INSTALL_SUFFIX "" CACHE STRING
+  "Suffix to append to all installed files")
+set(install_suffix ${JEMALLOC_INSTALL_SUFFIX})
 
 configure_file(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/jemalloc/internal/defs.h.in
@@ -429,7 +427,6 @@ set(cpp_srcs
   src/jemalloc_cpp.cpp
 )
 
-include(CompilerFlags)
 jemalloc_compiler_flags_shared(compiler_flags)
 
 set(jemalloc_lib_srcs
