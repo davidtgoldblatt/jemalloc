@@ -30,6 +30,9 @@
  * we require.
  */
 #define SEC_NSHARDS_MAX 8
+#if (1 << EDATA_SEC_SHARD_BITS) < SEC_NSHARDS_MAX
+#error "Too few SEC shard bits in the edata_t."
+#endif
 
 /*
  * For now, this is just one field; eventually, we'll probably want to get more

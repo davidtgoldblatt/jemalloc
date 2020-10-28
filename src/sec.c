@@ -50,15 +50,10 @@ bool sec_init(sec_t *sec, pai_t *fallback, size_t nshards, size_t alloc_max,
 	return false;
 }
 
-static sec_shard_t *
+static uint8_t
 sec_shard_pick(tsdn_t *tsdn, sec_t *sec) {
-	/*
-	 * Eventually, we should implement affinity, tracking source shard using
-	 * the edata_t's newly freed up fields.  For now, just randomly
-	 * distribute across all shards.
-	 */
 	if (tsdn_null(tsdn)) {
-		return &sec->shards[0];
+		return 0;
 	}
 	tsd_t *tsd = tsdn_tsd(tsdn);
 	uint8_t *idxp = tsd_sec_shardp_get(tsd);
@@ -74,18 +69,19 @@ sec_shard_pick(tsdn_t *tsdn, sec_t *sec) {
 		assert(idx < (uint32_t)sec->nshards);
 		*idxp = (uint8_t)idx;
 	}
-	return &sec->shards[*idxp];
+	return *idxp;
 }
 
 static edata_t *
-sec_shard_alloc_locked(tsdn_t *tsdn, sec_t *sec, sec_shard_t *shard,
-    pszind_t pszind) {
+sec_shard_alloc_locked(tsdn_t *tsdn, sec_t *sec, uint8_t idx,
+    sec_shard_t *shard, pszind_t pszind) {
 	malloc_mutex_assert_owner(tsdn, &shard->mtx);
 	if (!shard->enabled) {
 		return NULL;
 	}
 	edata_t *edata = edata_list_active_first(&shard->freelist[pszind]);
 	if (edata != NULL) {
+		assert(edata_sec_shard_get(edata) == idx);
 		edata_list_active_remove(&shard->freelist[pszind], edata);
 		assert(edata_size_get(edata) <= shard->bytes_cur);
 		shard->bytes_cur -= edata_size_get(edata);
@@ -104,9 +100,10 @@ sec_alloc(tsdn_t *tsdn, pai_t *self, size_t size, size_t alignment, bool zero) {
 		return pai_alloc(tsdn, sec->fallback, size, alignment, zero);
 	}
 	pszind_t pszind = sz_psz2ind(size);
-	sec_shard_t *shard = sec_shard_pick(tsdn, sec);
+	uint8_t idx = sec_shard_pick(tsdn, sec);
+	sec_shard_t *shard = &sec->shards[idx];
 	malloc_mutex_lock(tsdn, &shard->mtx);
-	edata_t *edata = sec_shard_alloc_locked(tsdn, sec, shard, pszind);
+	edata_t *edata = sec_shard_alloc_locked(tsdn, sec, idx, shard, pszind);
 	malloc_mutex_unlock(tsdn, &shard->mtx);
 	if (edata == NULL) {
 		/*
@@ -115,6 +112,9 @@ sec_alloc(tsdn_t *tsdn, pai_t *self, size_t size, size_t alignment, bool zero) {
 		 * a time.
 		 */
 		edata = pai_alloc(tsdn, sec->fallback, size, alignment, zero);
+		if (edata != NULL) {
+			edata_sec_shard_set(edata, idx);
+		}
 	}
 	return edata;
 }
@@ -190,7 +190,9 @@ sec_dalloc(tsdn_t *tsdn, pai_t *self, edata_t *edata) {
 		pai_dalloc(tsdn, sec->fallback, edata);
 		return;
 	}
-	sec_shard_t *shard = sec_shard_pick(tsdn, sec);
+	uint8_t idx = edata_sec_shard_get(edata);
+	assert(idx < sec->nshards);
+	sec_shard_t *shard = &sec->shards[idx];
 	malloc_mutex_lock(tsdn, &shard->mtx);
 	if (shard->enabled) {
 		sec_shard_dalloc_locked(tsdn, sec, shard, edata);
