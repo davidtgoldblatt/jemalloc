@@ -194,11 +194,23 @@ struct edata_s {
 	};
 
 	/*
+	 * Two packed fields:
+	 *
+	 * shard (low 4 bits):
+	 * The SEC shard an extent should be returned to.
+	 *
+	 * age (60 bits):
 	 * In some context-specific sense, the age of an active extent.  Each
 	 * context can pick a specific meaning, and share the definition of the
 	 * edata_age_heap_t below.
+	 *
+	 * For now we just hardcode the mask and width; if we want to grow this
+	 * much more we should do something more systematic, like in e_bits
+	 * above.
 	 */
-	uint64_t age;
+#define EDATA_SEC_SHARD_BITS 4
+#define EDATA_SEC_SHARD_MASK ((1ULL << EDATA_SEC_SHARD_BITS) - 1)
+	uint64_t age_sec_shard;
 	union {
 		/*
 		 * We could steal a low bit from these fields to indicate what
@@ -372,7 +384,12 @@ edata_bsize_get(const edata_t *edata) {
 
 static inline uint64_t
 edata_age_get(const edata_t *edata) {
-	return edata->age;
+	return edata->age_sec_shard >> EDATA_SEC_SHARD_BITS;
+}
+
+static inline uint8_t
+edata_sec_shard_get(const edata_t *edata) {
+	return (uint8_t)(edata->age_sec_shard & EDATA_SEC_SHARD_BITS);
 }
 
 static inline edata_t *
@@ -471,7 +488,16 @@ edata_bsize_set(edata_t *edata, size_t bsize) {
 
 static inline void
 edata_age_set(edata_t *edata, uint64_t age) {
-	edata->age = age;
+	assert(((age << EDATA_SEC_SHARD_BITS) >> EDATA_SEC_SHARD_BITS) == age);
+	edata->age_sec_shard = (edata->age_sec_shard & EDATA_SEC_SHARD_MASK)
+	    | (age << EDATA_SEC_SHARD_BITS);
+}
+
+static inline void
+edata_sec_shard_set(edata_t *edata, uint8_t sec_shard) {
+	assert((sec_shard & EDATA_SEC_SHARD_MASK) == sec_shard);
+	edata->age_sec_shard = (edata->age_sec_shard & ~EDATA_SEC_SHARD_MASK)
+	    | sec_shard;
 }
 
 static inline void
