@@ -687,16 +687,20 @@ stats_arena_hpa_shard_print(emitter_t *emitter, unsigned i, uint64_t uptime) {
 	size_t npageslabs_huge;
 	size_t nactive_huge;
 	size_t ninactive_huge;
+	size_t ndirty_huge;
 
 	size_t npageslabs_nonhuge;
 	size_t nactive_nonhuge;
 	size_t ninactive_nonhuge;
+	size_t ndirty_nonhuge;
 
 	CTL_M2_GET("stats.arenas.0.hpa_shard.full_slabs.npageslabs_huge",
 	    i, &npageslabs_huge, size_t);
 	CTL_M2_GET("stats.arenas.0.hpa_shard.full_slabs.nactive_huge",
 	    i, &nactive_huge, size_t);
 	ninactive_huge = npageslabs_huge * HUGEPAGE_PAGES - nactive_huge;
+	CTL_M2_GET("stats.arenas.0.hpa_shard.full_slabs.ndirty_huge",
+	    i, &ndirty_huge, size_t);
 
 	CTL_M2_GET("stats.arenas.0.hpa_shard.full_slabs.npageslabs_nonhuge",
 	    i, &npageslabs_nonhuge, size_t);
@@ -704,6 +708,8 @@ stats_arena_hpa_shard_print(emitter_t *emitter, unsigned i, uint64_t uptime) {
 	    i, &nactive_nonhuge, size_t);
 	ninactive_nonhuge = npageslabs_nonhuge * HUGEPAGE_PAGES
 	    - nactive_nonhuge;
+	CTL_M2_GET("stats.arenas.0.hpa_shard.full_slabs.ndirty_nonhuge",
+	    i, &ndirty_nonhuge, size_t);
 
 	size_t sec_bytes;
 	CTL_M2_GET("stats.arenas.0.hpa_sec_bytes", i, &sec_bytes, size_t);
@@ -721,7 +727,8 @@ stats_arena_hpa_shard_print(emitter_t *emitter, unsigned i, uint64_t uptime) {
 	    "  In full slabs:\n"
 	    "      npageslabs: %zu huge, %zu nonhuge\n"
 	    "      nactive: %zu huge, %zu nonhuge \n"
-	    "      ninactive: %zu huge, %zu nonhuge \n",
+	    "      ninactive: %zu huge, %zu nonhuge \n"
+	    "      ndirty: %zu huge, %zu nonhuge \n",
 	    nevictions, rate_per_second(nevictions, uptime),
 	    npurge_passes, rate_per_second(npurge_passes, uptime),
 	    npurges, rate_per_second(npurges, uptime),
@@ -729,7 +736,9 @@ stats_arena_hpa_shard_print(emitter_t *emitter, unsigned i, uint64_t uptime) {
 	    ndehugifies, rate_per_second(ndehugifies, uptime),
 	    npageslabs_huge, npageslabs_nonhuge,
 	    nactive_huge, nactive_nonhuge,
-	    ninactive_huge, ninactive_nonhuge);
+	    ninactive_huge, ninactive_nonhuge,
+	    ndirty_huge, ndirty_nonhuge);
+
 	emitter_json_object_kv_begin(emitter, "hpa_shard");
 	emitter_json_kv(emitter, "nevictions", emitter_type_uint64,
 	    &nevictions);
@@ -745,12 +754,16 @@ stats_arena_hpa_shard_print(emitter_t *emitter, unsigned i, uint64_t uptime) {
 	emitter_json_object_kv_begin(emitter, "full_slabs");
 	emitter_json_kv(emitter, "npageslabs_huge", emitter_type_size,
 	    &npageslabs_huge);
-	emitter_json_kv(emitter, "npageslabs_nonhuge", emitter_type_size,
-	    &npageslabs_nonhuge);
 	emitter_json_kv(emitter, "nactive_huge", emitter_type_size,
 	    &nactive_huge);
+	emitter_json_kv(emitter, "nactive_huge", emitter_type_size,
+	    &nactive_huge);
+	emitter_json_kv(emitter, "npageslabs_nonhuge", emitter_type_size,
+	    &npageslabs_nonhuge);
 	emitter_json_kv(emitter, "nactive_nonhuge", emitter_type_size,
 	    &nactive_nonhuge);
+	emitter_json_kv(emitter, "ndirty_nonhuge", emitter_type_size,
+	    &ndirty_nonhuge);
 	emitter_json_object_end(emitter); /* End "full_slabs" */
 
 	COL_HDR(row, size, NULL, right, 20, size)
@@ -758,9 +771,11 @@ stats_arena_hpa_shard_print(emitter_t *emitter, unsigned i, uint64_t uptime) {
 	COL_HDR(row, npageslabs_huge, NULL, right, 16, size)
 	COL_HDR(row, nactive_huge, NULL, right, 16, size)
 	COL_HDR(row, ninactive_huge, NULL, right, 16, size)
+	COL_HDR(row, ndirty_huge, NULL, right, 16, size)
 	COL_HDR(row, npageslabs_nonhuge, NULL, right, 20, size)
 	COL_HDR(row, nactive_nonhuge, NULL, right, 20, size)
 	COL_HDR(row, ninactive_nonhuge, NULL, right, 20, size)
+	COL_HDR(row, ndirty_nonhuge, NULL, right, 20, size)
 
 	emitter_table_row(emitter, &header_row);
 	emitter_json_array_kv_begin(emitter, "nonfull_slabs");
@@ -774,6 +789,9 @@ stats_arena_hpa_shard_print(emitter_t *emitter, unsigned i, uint64_t uptime) {
 		    i, j, &nactive_huge, size_t);
 		ninactive_huge = npageslabs_huge * HUGEPAGE_PAGES
 		    - nactive_huge;
+		CTL_M2_M5_GET(
+		    "stats.arenas.0.hpa_shard.nonfull_slabs.0.ndirty_huge",
+		    i, j, &ndirty_huge, size_t);
 
 		CTL_M2_M5_GET(
 		    "stats.arenas.0.hpa_shard.nonfull_slabs.0.npageslabs_nonhuge",
@@ -783,6 +801,9 @@ stats_arena_hpa_shard_print(emitter_t *emitter, unsigned i, uint64_t uptime) {
 		    i, j, &nactive_nonhuge, size_t);
 		ninactive_nonhuge = npageslabs_nonhuge * HUGEPAGE_PAGES
 		    - nactive_nonhuge;
+		CTL_M2_M5_GET(
+		    "stats.arenas.0.hpa_shard.nonfull_slabs.0.ndirty_nonhuge",
+		    i, j, &ndirty_nonhuge, size_t);
 
 		bool in_gap_prev = in_gap;
 		in_gap = (npageslabs_huge == 0 && npageslabs_nonhuge == 0);
@@ -796,9 +817,11 @@ stats_arena_hpa_shard_print(emitter_t *emitter, unsigned i, uint64_t uptime) {
 		col_npageslabs_huge.size_val = npageslabs_huge;
 		col_nactive_huge.size_val = nactive_huge;
 		col_ninactive_huge.size_val = ninactive_huge;
+		col_ndirty_huge.size_val = ndirty_huge;
 		col_npageslabs_nonhuge.size_val = npageslabs_nonhuge;
 		col_nactive_nonhuge.size_val = nactive_nonhuge;
 		col_ninactive_nonhuge.size_val = ninactive_nonhuge;
+		col_ndirty_nonhuge.size_val = ndirty_nonhuge;
 		if (!in_gap) {
 			emitter_table_row(emitter, &row);
 		}
@@ -808,10 +831,14 @@ stats_arena_hpa_shard_print(emitter_t *emitter, unsigned i, uint64_t uptime) {
 		    &npageslabs_huge);
 		emitter_json_kv(emitter, "nactive_huge", emitter_type_size,
 		    &nactive_huge);
+		emitter_json_kv(emitter, "ndirty_huge", emitter_type_size,
+		    &ndirty_huge);
 		emitter_json_kv(emitter, "npageslabs_nonhuge", emitter_type_size,
 		    &npageslabs_nonhuge);
 		emitter_json_kv(emitter, "nactive_nonhuge", emitter_type_size,
 		    &nactive_nonhuge);
+		emitter_json_kv(emitter, "ndirty_nonhuge", emitter_type_size,
+		    &ndirty_nonhuge);
 		emitter_json_object_end(emitter);
 	}
 	emitter_json_array_end(emitter); /* End "nonfull_slabs" */
